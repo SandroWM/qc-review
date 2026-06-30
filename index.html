@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Wünsche QC Review</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<!-- LOGIN -->
+<section id="login-view" class="login-wrap">
+  <form id="login-form" class="login-card" autocomplete="off">
+    <div class="brand"><span class="lock" aria-hidden="true">&#128274;</span> Wünsche QC Review</div>
+    <p class="login-sub">Mit deinen Zugangsdaten einloggen.</p>
+    <label>Benutzername<input id="login-user" type="text" required autocomplete="username" /></label>
+    <label>Passwort<input id="login-pass" type="password" required autocomplete="current-password" /></label>
+    <button type="submit" id="login-btn">Einloggen</button>
+    <div id="login-hint" class="hint-error" role="alert"></div>
+    <div id="demo-note" class="login-demo" hidden>
+      Demo-Modus: <code>sandro</code> / <code>va-007</code>, Passwort <code>demo</code>.
+    </div>
+  </form>
+</section>
+
+<!-- APP -->
+<section id="app-view" hidden>
+  <header class="topbar">
+    <div class="brand"><span class="lock" aria-hidden="true">&#128274;</span> Wünsche QC Review</div>
+    <div class="topbar-right">
+      <select id="mode-select" class="mode-select" aria-label="Modus"></select>
+      <div class="user-chip">
+        <div class="user-meta"><span class="user-state">Eingeloggt</span><span id="user-name" class="user-name"></span></div>
+        <div id="user-avatar" class="avatar"></div>
+      </div>
+      <button id="logout-btn" class="icon-btn" title="Logout" aria-label="Logout">&#9099;</button>
+    </div>
+  </header>
+
+  <div class="statbar">
+    <div class="stat"><span class="stat-label">Heute geprüft</span><span id="st-done" class="stat-val">0</span></div>
+    <div class="stat"><span class="stat-label">Agreement</span><span id="st-agree" class="stat-val">–</span></div>
+    <div class="stat"><span class="stat-label">Begründungen</span><span id="st-quota" class="stat-val">0/0</span></div>
+    <div class="stat"><span class="stat-label">Verdienst heute</span><span id="st-earn" class="stat-val">0,00&nbsp;€</span></div>
+  </div>
+
+  <main class="workspace">
+    <!-- REVIEW COLUMN -->
+    <div class="card review-card">
+      <div class="item-meta">
+        <span>Item <span id="item-id">–</span> · <span id="item-typ">–</span></span>
+        <span id="item-source" class="badge">–</span>
+      </div>
+
+      <div id="va-original" class="va-original" hidden></div>
+
+      <div id="asset" class="asset"><div class="asset-empty">Lade nächstes Item …</div></div>
+
+      <div class="decisions">
+        <button class="dbtn" data-d="approve" type="button"><span aria-hidden="true">&#10003;</span> Approve</button>
+        <button class="dbtn" data-d="reject" type="button"><span aria-hidden="true">&#10007;</span> Reject</button>
+      </div>
+      <p class="decisions-note">Du entscheidest nur <strong>Freigabe</strong> oder <strong>Ablehnung</strong> (mit Grund). Ob etwas neu erstellt oder überarbeitet wird, steuert das System.</p>
+
+      <div class="rating" id="rating-row">
+        <span class="rating-label">Rating</span>
+        <div id="rating-stars" class="stars" role="radiogroup" aria-label="Rating 1 bis 5"></div>
+      </div>
+
+      <label id="just-label" class="just-label" for="just">Begründung <span class="opt">(optional — zählt zur 30%-Quote)</span></label>
+      <textarea id="just" rows="2" placeholder="Was passt nicht — oder was passt? z. B. Hände-Artefakt, Gesicht inkonsistent mit Creator, Licht/Komposition …"></textarea>
+
+      <div class="quota">
+        <div class="quota-top"><span>Begründungs-Quote heute</span><span id="quota-text">0 / 0 nötig (30%)</span></div>
+        <div class="quota-track"><div id="quota-bar" class="quota-bar"></div></div>
+      </div>
+
+      <button id="next-btn" class="primary" type="button">Speichern &amp; weiter <span aria-hidden="true">&rarr;</span></button>
+      <div id="review-hint" class="hint-error" role="alert"></div>
+    </div>
+
+    <!-- REFERENCE COLUMN -->
+    <aside class="card ref-card">
+      <div class="ref-head">
+        <div id="ref-avatar" class="avatar"></div>
+        <div>
+          <div id="ref-name" class="ref-name">Creator</div>
+          <div class="ref-sub">Approved-Referenz</div>
+        </div>
+      </div>
+      <p class="ref-q">Passt das geprüfte Bild zu diesem Aussehen?</p>
+      <div id="ref-grid" class="ref-grid"></div>
+      <div class="ref-foot"><span aria-hidden="true">&#8635;</span> Wechselt automatisch je Creator</div>
+    </aside>
+  </main>
+
+  <div id="screening-done" class="screening-done" hidden></div>
+</section>
+
+<script src="app.js?v=2"></script>
+</body>
+</html>

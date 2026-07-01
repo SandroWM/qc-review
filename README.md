@@ -1,7 +1,14 @@
 # QC-Review-App
 
 Sichere Web-Oberfläche für die Content-Quality-Control des Wünsche-Marketing-Systems
-(`wuensche-marketing-build` → `process/qc-system-spec.md`, Abschnitt „QC-Review-App").
+(`full-ai-marketing-build` → `process/qc-system-spec.md`, Abschnitt „QC-Review-App").
+
+**V2 (W2-Härtung + Typ-Tabs, 2026-07-02):** serverseitige Rechte-Prüfung (Item-Zuweisung, Modus-Rollen-Gate),
+LockService gegen Races, Login-Rate-Limit + iteriertes Passwort-Hashing (Salt + Server-Pepper, Auto-Upgrade),
+30%-Begründungs-Quote serverseitig, Screening ohne Login-Token (Test-Ref gegen `sheet-63` validiert, inkl.
+NSFW-Consent-Zeitstempel), Typ-Tabs (Board je Content-Typ inkl. **Skript**), Skript-Items als Text,
+XSS-sichere DOM-Erzeugung, Tastatur-Bedienung (A/R, 1–5, Enter), Notfall-Token-Revoke (`bumpTokenVersion()`).
+Setup jetzt: `setup('EinmalAdminPasswort')` — kein Passwort mehr im Code.
 
 **Ein Tool, drei Modi:**
 - **Review** (Tier-0 Sandro / Tier-1 VAs) — Live-Queue `sheet-60-qc-queue` prüfen.

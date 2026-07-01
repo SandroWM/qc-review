@@ -1,20 +1,25 @@
-/* QC-Review-App — Front-end. Vanilla JS, kein Build-Schritt.
+/* QC-Review-App — Front-end. Vanilla JS, kein Build-Schritt. V2 (W2-Haertung + Typ-Tabs, 2026-07-02).
    Demo-Modus laeuft ohne Backend; fuer live CONFIG.BACKEND_URL setzen + DEMO_MODE=false.
    Reviewer entscheidet NUR approve/reject (OK/nicht-OK) + Grund. Ob revision/neu erstellt wird,
-   entscheidet das System (sop-09-05), nicht der Mensch. */
+   entscheidet das System (sop-09-05), nicht der Mensch.
+   V2: Typ-Tabs (Board je Content-Typ inkl. Skript — Sandro-Vorgabe D22), XSS-sichere DOM-Erzeugung
+   (kein innerHTML mit Sheet-Daten), try/catch um alle API-Aufrufe (Button haengt nicht mehr),
+   Skript-Items als Text, Tastatur (A/R, 1-5, Enter), Verdienst als Basis-Stuecklohn gelabelt,
+   Screening via Test-Ref (?test=...) mit Server-Scoring. */
 
 const CONFIG = {
   BACKEND_URL: "",        // <- /exec-URL der Apps-Script-Web-App eintragen
   DEMO_MODE: true,        // <- fuer Live-Betrieb auf false
   QUOTA_PCT: 30,          // qc-begruendung-quote-prozent (Default; live aus sheet-48)
-  RATE: { Bild: 0.025, Video: 0.06, "editiertes-Video": 0.06, Plan: 0.10, Konzept: 0.10 }
+  RATE: { Bild: 0.025, Video: 0.06, "editiertes-Video": 0.06, Skript: 0.05, Plan: 0.10, Konzept: 0.10 }
 };
+const TYPES = ["Bild","Video","editiertes-Video","Skript","Plan","Konzept"];
 
 const $ = (id) => document.getElementById(id);
-const state = { token:null, role:null, name:null, vaId:null, mode:"review",
-                item:null, decision:null, rating:0,
+const state = { token:null, testRef:null, role:null, name:null, vaId:null, mode:"review", typ:null,
+                item:null, decision:null, rating:0, busy:false,
                 done:0, described:0, agree:0, agreeBase:0, earn:0,
-                scrTotal:0, scrCorrect:0 };
+                scrTotal:0, scrCorrect:0, scrServer:null };
 
 /* ---------- Platzhalter-Bilder (nur Demo) ---------- */
 function ph(label, hue){
@@ -37,21 +42,23 @@ const DEMO = {
     luna:{ name:"Luna", hue:265 }, mia:{ name:"Mia", hue:165 },
     aria:{ name:"Aria", hue:18 }, nora:{ name:"Nora", hue:330 }
   },
-  qIdx:0,
   queue:[
-    { creator:"luna", typ:"Bild",  src:"sop-05-05 · PPV",  vaDecision:"approve" },
-    { creator:"mia",  typ:"Bild",  src:"sop-02-01 · Feed", vaDecision:"approve" },
-    { creator:"aria", typ:"Video", src:"sop-03-01 · Reel", vaDecision:"reject"  },
-    { creator:"luna", typ:"Bild",  src:"sop-05-05 · PPV",  vaDecision:"reject"  },
-    { creator:"nora", typ:"Bild",  src:"sop-02-01 · Feed", vaDecision:"approve" },
-    { creator:"mia",  typ:"Video", src:"sop-05-05 · PPV",  vaDecision:"approve" }
+    { creator:"luna", typ:"Bild",   src:"sop-05-05 · PPV",  vaDecision:"approve" },
+    { creator:"mia",  typ:"Bild",   src:"sop-02-01 · Feed", vaDecision:"approve" },
+    { creator:"aria", typ:"Video",  src:"sop-03-01 · Reel", vaDecision:"reject"  },
+    { creator:"luna", typ:"Skript", src:"sop-01-32 · Reel-Skript", vaDecision:"approve",
+      text:"Reel reel-00412 · reel\n\nHOOK (0-1s): \"POV: dein Gym-Crush merkt, dass du seine Playlist hoerst\" — Close-up, direkter Blick.\n\nBODY: 3 Cuts auf Beat. Cut 1: Kopfhoerer rein, Blick zur Seite. Cut 2: Lip-sync Zeile 1, Haare zurueck. Cut 3: Lachen, Kamera-Schwenk.\n\nENDPART: Text-Overlay \"folg mir fuer Teil 2\" + Zwinkern.\n\n— Caption —\ner hat es gemerkt... 🙈 #gymtok #playlist" },
+    { creator:"nora", typ:"Bild",   src:"sop-02-01 · Feed", vaDecision:"approve" },
+    { creator:"mia",  typ:"Skript", src:"sop-01-32 · Carousel", vaDecision:"reject",
+      text:"Reel reel-00415 · carousel\n\n[Slide 1/4 · Hook] \"3 Dinge, die ich vor 10k Followern gern gewusst haette\" — Bild: Spiegel-Selfie, Text-Overlay gross.\n\n[Slide 2/4 · Value] Konsistenz schlaegt Perfektion — Bild: Schreibtisch-Szene.\n\n[Slide 3/4 · Value] Hooks entscheiden alles — Bild: Nahaufnahme.\n\n[Slide 4/4 · CTA] \"Speichern + folgen fuer mehr\" — Bild: Winken." },
+    { creator:"aria", typ:"Video",  src:"sop-05-05 · PPV",  vaDecision:"approve" }
   ],
-  gIdx:0,
   golden:[
     { creator:"luna", typ:"Bild", gt:"approve" }, { creator:"mia",  typ:"Bild", gt:"reject"  },
     { creator:"aria", typ:"Bild", gt:"approve" }, { creator:"nora", typ:"Bild", gt:"reject"  },
     { creator:"luna", typ:"Video",gt:"reject"  }, { creator:"mia",  typ:"Bild", gt:"approve" }
-  ]
+  ],
+  gIdx:0, done:new Set()
 };
 function demoRef(cKey){
   const c = DEMO.creators[cKey];
@@ -59,24 +66,33 @@ function demoRef(cKey){
 }
 function demoItem(raw, idx, prefix){
   const c = DEMO.creators[raw.creator];
+  const asset = raw.typ === "Skript"
+    ? { kind:"text", text: raw.text || "Skript-Text (Demo)" }
+    : { kind:"image", url: ph(c.name.toLowerCase()+" · "+(raw.typ==="Video"?"clip":"img")+"-"+(idx%9+1), c.hue) };
   return {
     itemId: prefix + String(4821+idx),
     contentTyp: raw.typ, sourceSop: raw.src || "golden-set",
     creatorId: raw.creator, creatorName: c.name,
-    assetUrl: ph(c.name.toLowerCase()+" · "+(raw.typ==="Video"?"clip":"img")+"-"+(idx%9+1), c.hue),
-    vaDecision: raw.vaDecision || null,
+    asset, vaDecision: raw.vaDecision || null,
     reference: demoRef(raw.creator),
-    _gt: raw.gt || null
+    _gt: raw.gt || null, _idx: idx
   };
+}
+function demoSummary(){
+  const out = {}; TYPES.forEach(t=>out[t]=0);
+  DEMO.queue.forEach((q,i)=>{ if(!DEMO.done.has(i)) out[q.typ]++; });
+  return out;
 }
 
 /* ---------- API (Demo oder echt) ---------- */
 async function api(action, body){
   if (CONFIG.DEMO_MODE) return demoApi(action, body);
+  if (!CONFIG.BACKEND_URL) return { ok:false, error:"Backend nicht konfiguriert (CONFIG.BACKEND_URL)." };
   const res = await fetch(CONFIG.BACKEND_URL, {
     method:"POST", headers:{ "Content-Type":"text/plain;charset=utf-8" },
     body: JSON.stringify(Object.assign({ action }, body))
   });
+  if (!res.ok) throw new Error("HTTP " + res.status);
   return res.json();
 }
 function demoApi(action, body){
@@ -87,26 +103,29 @@ function demoApi(action, body){
   }
   if (action === "next"){
     if (body.mode === "screening"){
-      if (DEMO.gIdx >= DEMO.golden.length) return { ok:true, item:null };
+      if (DEMO.gIdx >= DEMO.golden.length)
+        return { ok:true, item:null, stats:{ done:DEMO.gIdx, total:DEMO.golden.length, finished:true,
+          scorePct: state.scrTotal ? Math.round(state.scrCorrect/state.scrTotal*100) : 0 } };
       const it = demoItem(DEMO.golden[DEMO.gIdx], DEMO.gIdx, "gold-");
-      return { ok:true, item:it, reference:[], stats:demoStats(body.mode) };
+      return { ok:true, item:it, reference:[], stats:{ done:DEMO.gIdx, total:DEMO.golden.length } };
     }
-    const raw = DEMO.queue[DEMO.qIdx % DEMO.queue.length];
-    const it = demoItem(raw, DEMO.qIdx, "qc-00");
-    return { ok:true, item:it, reference:it.reference, stats:demoStats(body.mode) };
+    const idx = DEMO.queue.findIndex((q,i)=> !DEMO.done.has(i) && (!body.typ || q.typ===body.typ));
+    if (idx < 0) return { ok:true, item:null, stats:demoStats(body.mode), queueSummary:demoSummary() };
+    const it = demoItem(DEMO.queue[idx], idx, "qc-00");
+    return { ok:true, item:it, reference:it.reference, stats:demoStats(body.mode), queueSummary:demoSummary() };
   }
   if (action === "submit"){
     if (body.mode === "screening"){
       const gt = (state.item && state.item._gt);
       state.scrTotal++; if (gt && gt === body.decision) state.scrCorrect++;
       DEMO.gIdx++;
-      return { ok:true, stats:demoStats(body.mode) };
+      return { ok:true, stats:{ done:DEMO.gIdx, total:DEMO.golden.length } };
     }
     state.done++;
     if ((body.begruendung||"").trim()) state.described++;
     state.earn += CONFIG.RATE[body.contentTyp] || 0.025;
     if (body.mode === "spotcheck"){ state.agreeBase++; if (body.decision === body.vaDecision) state.agree++; }
-    DEMO.qIdx++;
+    if (state.item && state.item._idx != null) DEMO.done.add(state.item._idx);
     return { ok:true, stats:demoStats(body.mode) };
   }
   return { ok:false, error:"unknown action" };
@@ -118,63 +137,121 @@ function demoStats(mode){
            neededToday:need, earningsToday:state.earn };
 }
 
-/* ---------- Render ---------- */
+/* ---------- Render (XSS-sicher: nur createElement/textContent fuer dynamische Daten) ---------- */
 function initials(s){ return (s||"?").replace(/[^a-zA-ZäöüÄÖÜ ]/g,"").split(/\s|-/).map(w=>w[0]).join("").slice(0,2).toUpperCase(); }
+function clear(el){ while (el.firstChild) el.removeChild(el.firstChild); }
 
-function renderItem(item, reference, stats){
+function renderTabs(summary){
+  const bar = $("typ-tabs");
+  if (!bar) return;
+  clear(bar);
+  if (!summary || state.mode === "screening"){ bar.hidden = true; return; }
+  const entries = TYPES.map(t => [t, summary[t]||0]);
+  const total = entries.reduce((s,[,n])=>s+n,0);
+  bar.hidden = false;
+  const mk = (label, count, typVal) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "tbtn" + ((state.typ||null)===typVal ? " active" : "");
+    const lab = document.createElement("span"); lab.textContent = label;
+    const cnt = document.createElement("span"); cnt.className = "tcount"; cnt.textContent = String(count);
+    b.appendChild(lab); b.appendChild(cnt);
+    b.onclick = () => { state.typ = typVal; loadNext(); };
+    bar.appendChild(b);
+  };
+  mk("Alle", total, null);
+  entries.forEach(([t,n]) => { if (n > 0 || state.typ === t) mk(t, n, t); });
+}
+
+function renderAsset(asset, contentTyp){
+  const box = $("asset");
+  clear(box);
+  if (!asset){ const d=document.createElement("div"); d.className="asset-empty"; d.textContent="Kein Asset."; box.appendChild(d); return; }
+  if (asset.kind === "text"){
+    box.classList.add("asset-text");
+    const pre = document.createElement("pre");
+    pre.className = "skript-text";
+    pre.textContent = asset.text || "";
+    box.appendChild(pre);
+  } else {
+    box.classList.remove("asset-text");
+    const img = document.createElement("img");
+    img.alt = "Zu pruefendes " + (contentTyp||"Item");
+    img.onerror = () => { clear(box); const d=document.createElement("div"); d.className="asset-empty";
+      d.textContent = "Asset konnte nicht geladen werden — Link pruefen."; box.appendChild(d); };
+    img.src = asset.url || "";
+    box.appendChild(img);
+  }
+}
+
+function renderItem(item, reference, stats, summary){
   state.item = item; state.decision = null; state.rating = 0;
   $("review-hint").textContent = "";
   $("just").value = ""; $("just").classList.remove("req");
   document.querySelectorAll(".dbtn").forEach(b=>b.className="dbtn");
-  updateJustLabel(); renderStars();
+  updateJustLabel(); renderStars(); renderTabs(summary);
 
   if (!item){
-    if (state.mode === "screening") return showScreeningResult();
-    $("asset").innerHTML = '<div class="asset-empty">Keine Items in der Queue. &#10003;</div>';
+    if (state.mode === "screening") return showScreeningResult(stats);
+    clear($("asset"));
+    const d = document.createElement("div"); d.className = "asset-empty";
+    d.textContent = state.typ ? ("Keine Items im Tab „"+state.typ+"“.") : "Keine Items in der Queue. ✓";
+    $("asset").appendChild(d);
     $("item-id").textContent="–"; $("item-typ").textContent="–"; $("item-source").textContent="–";
-    $("va-original").hidden = true; $("next-btn").disabled = true; $("ref-grid").innerHTML="";
+    $("va-original").hidden = true; $("next-btn").disabled = true; clear($("ref-grid"));
+    applyStats(stats);
     return;
   }
   $("next-btn").disabled = false;
   $("item-id").textContent = item.itemId;
   $("item-typ").textContent = item.contentTyp;
   $("item-source").textContent = item.sourceSop;
-  $("asset").innerHTML = `<img src="${item.assetUrl}" alt="Zu pruefendes ${item.contentTyp}" />`;
+  renderAsset(item.asset, item.contentTyp);
 
-  // Spot-Check: die VA-Entscheidung zeigen
+  // Spot-Check: die VA-Entscheidung zeigen (textContent — kein innerHTML mit Sheet-Daten)
+  const vo = $("va-original");
   if (state.mode === "spotcheck" && item.vaDecision){
-    $("va-original").hidden = false;
-    $("va-original").innerHTML = `VA-Entscheidung: <strong>${item.vaDecision}</strong> — stimmst du zu? (bei Abweichung Begründung Pflicht)`;
-  } else $("va-original").hidden = true;
+    vo.hidden = false; clear(vo);
+    vo.appendChild(document.createTextNode("VA-Entscheidung: "));
+    const strong = document.createElement("strong"); strong.textContent = String(item.vaDecision);
+    vo.appendChild(strong);
+    vo.appendChild(document.createTextNode(" — stimmst du zu? (bei Abweichung Begründung Pflicht)"));
+  } else vo.hidden = true;
 
   // Referenz-Galerie (nicht im Screening)
   const grid = $("ref-grid");
-  if (state.mode === "screening" || !reference || !reference.length){
-    grid.innerHTML=""; $("ref-name").textContent = item.creatorName ? "Creator: "+item.creatorName : "–";
-    $("ref-avatar").textContent = initials(item.creatorName);
-  } else {
-    $("ref-name").textContent = "Creator: " + item.creatorName;
-    $("ref-avatar").textContent = initials(item.creatorName);
-    grid.innerHTML = reference.map(r =>
-      `<div class="thumb"><img src="${r.url}" alt="Approved ${r.label}"/><span class="ok">&#10003;</span></div>`).join("");
+  clear(grid);
+  $("ref-name").textContent = item.creatorName ? "Creator: "+item.creatorName : "–";
+  $("ref-avatar").textContent = initials(item.creatorName);
+  if (state.mode !== "screening" && reference && reference.length){
+    reference.forEach(r => {
+      const th = document.createElement("div"); th.className = "thumb";
+      const img = document.createElement("img");
+      img.alt = "Approved " + String(r.label||""); img.src = String(r.url||"");
+      img.onerror = () => { th.remove(); };
+      const ok = document.createElement("span"); ok.className = "ok"; ok.textContent = "✓";
+      th.appendChild(img); th.appendChild(ok); grid.appendChild(th);
+    });
   }
   applyStats(stats);
 }
 
 function renderStars(){
-  const wrap = $("rating-stars"); wrap.innerHTML="";
+  const wrap = $("rating-stars"); clear(wrap);
   for (let i=1;i<=5;i++){
     const s=document.createElement("span");
     s.className="star"+(i<=state.rating?" on":""); s.textContent="★";
     s.setAttribute("role","radio"); s.setAttribute("aria-checked", i===state.rating);
+    s.tabIndex = 0;
     s.onclick=()=>{ state.rating=i; renderStars(); };
+    s.onkeydown=(e)=>{ if(e.key===" "||e.key==="Enter"){ e.preventDefault(); state.rating=i; renderStars(); } };
     wrap.appendChild(s);
   }
 }
 function applyStats(st){
   if (!st) return;
   if (state.mode === "screening"){
-    $("st-done").textContent = state.scrTotal;
+    $("st-done").textContent = (st.done!=null? st.done : state.scrTotal) + (st.total? "/"+st.total : "");
     $("st-agree").textContent = "Test läuft";
     $("st-quota").textContent = "—"; $("st-earn").textContent = "—";
     return;
@@ -194,7 +271,8 @@ function applyStats(st){
 function selectDecision(d, btn){
   state.decision = d;
   document.querySelectorAll(".dbtn").forEach(b=>b.className="dbtn");
-  btn.classList.add("sel-"+d);
+  if (btn) btn.classList.add("sel-"+d);
+  else { const b=document.querySelector('.dbtn[data-d="'+d+'"]'); if (b) b.classList.add("sel-"+d); }
   updateJustLabel(); $("review-hint").textContent=""; $("just").classList.remove("req");
 }
 function updateJustLabel(){
@@ -208,12 +286,14 @@ function updateJustLabel(){
 }
 
 async function onNext(){
+  if (state.busy) return;
+  if (!state.item){ return; }
   if (!state.decision){ $("review-hint").textContent = "Bitte zuerst Approve oder Reject wählen."; return; }
   const just = $("just").value.trim();
   const needReject = (state.decision==="reject");
   const needDisagree = (state.mode==="spotcheck" && state.item && state.decision!==state.item.vaDecision);
   let needQuota = false;
-  if (state.mode!=="screening"){
+  if (state.mode==="review"){
     const describedAfter = state.described + (just?1:0);
     needQuota = state.done >= 1 && (describedAfter/(state.done+1)) < (CONFIG.QUOTA_PCT/100);
   }
@@ -223,29 +303,58 @@ async function onNext(){
       : "Begründungs-Quote: mind. "+CONFIG.QUOTA_PCT+"% — bitte dieses Item kurz begründen.";
     $("just").classList.add("req"); $("just").focus(); return;
   }
-  $("next-btn").disabled = true;
-  const r = await api("submit", { token:state.token, mode:state.mode, itemId:state.item.itemId,
-    decision:state.decision, rating:state.rating, begruendung:just,
-    contentTyp:state.item.contentTyp, vaDecision:state.item.vaDecision });
-  if (!r.ok){ $("review-hint").textContent = r.error||"Fehler beim Speichern."; $("next-btn").disabled=false; return; }
-  await loadNext();
+  state.busy = true; $("next-btn").disabled = true;
+  try {
+    const r = await api("submit", { token:state.token, test:state.testRef, mode:state.mode,
+      itemId:state.item.itemId, typ:state.typ||"",
+      decision:state.decision, rating:state.rating, begruendung:just,
+      contentTyp:state.item.contentTyp, vaDecision:state.item.vaDecision });
+    if (!r || !r.ok){
+      $("review-hint").textContent = (r && r.error) || "Fehler beim Speichern.";
+      if (r && r.quota){ $("just").classList.add("req"); $("just").focus(); }
+      state.busy=false; $("next-btn").disabled=false; return;
+    }
+    if (state.mode==="review" && !CONFIG.DEMO_MODE && r.stats){ state.done=r.stats.done; state.described=r.stats.describedToday; }
+    if (r.stats && r.stats.finished) state.scrServer = r.stats;
+    state.busy = false;
+    await loadNext();
+  } catch(err){
+    $("review-hint").textContent = "Netzwerk-/Serverfehler: " + (err && err.message ? err.message : err);
+    state.busy=false; $("next-btn").disabled=false;
+  }
 }
 
 async function loadNext(){
-  const r = await api("next", { token:state.token, mode:state.mode });
-  if (!r.ok){ $("review-hint").textContent = r.error||"Fehler beim Laden."; return; }
-  renderItem(r.item, r.reference, r.stats);
+  try {
+    const r = await api("next", { token:state.token, test:state.testRef, mode:state.mode, typ:state.typ||"" });
+    if (!r || !r.ok){ $("review-hint").textContent = (r && r.error)||"Fehler beim Laden."; return; }
+    if (state.mode==="review" && !CONFIG.DEMO_MODE && r.stats){ state.done=r.stats.done||0; state.described=r.stats.describedToday||0; }
+    renderItem(r.item, r.reference, r.stats, r.queueSummary);
+  } catch(err){
+    $("review-hint").textContent = "Netzwerk-/Serverfehler: " + (err && err.message ? err.message : err);
+    $("next-btn").disabled = false;
+  }
 }
 
-function showScreeningResult(){
+function showScreeningResult(stats){
   document.querySelector(".workspace").hidden = true;
   document.querySelector(".statbar").hidden = true;
-  const pct = state.scrTotal ? Math.round(state.scrCorrect/state.scrTotal*100) : 0;
+  const tb = $("typ-tabs"); if (tb) tb.hidden = true;
+  const server = state.scrServer || stats || {};
+  const pct = (server.scorePct!=null) ? server.scorePct
+            : (state.scrTotal ? Math.round(state.scrCorrect/state.scrTotal*100) : 0);
   const pass = pct >= 85;
   const box = $("screening-done"); box.hidden=false;
-  box.innerHTML = `<h2>Test abgeschlossen</h2>
-    <p>Übereinstimmung mit der Ground-Truth: <strong>${pct}%</strong> (${state.scrCorrect}/${state.scrTotal}).</p>
-    <p style="color:var(--text-2)">${pass ? "Über der Schwelle (85%) — im Live-Betrieb folgt das Angebot per Mail." : "Unter der Schwelle (85%)."}</p>`;
+  clear(box);
+  const h = document.createElement("h2"); h.textContent = "Test abgeschlossen"; box.appendChild(h);
+  const p1 = document.createElement("p");
+  p1.appendChild(document.createTextNode("Übereinstimmung mit der Ground-Truth: "));
+  const strong = document.createElement("strong"); strong.textContent = pct + "%"; p1.appendChild(strong);
+  box.appendChild(p1);
+  const p2 = document.createElement("p"); p2.style.color = "var(--text-2)";
+  p2.textContent = pass ? "Über der Schwelle (85%) — im Live-Betrieb folgt das Angebot per Mail."
+                        : "Unter der Schwelle (85%).";
+  box.appendChild(p2);
 }
 
 /* ---------- Modus + Login ---------- */
@@ -257,9 +366,9 @@ function startApp(){
   $("login-view").hidden = true; $("app-view").hidden = false;
   $("user-name").textContent = state.name + (state.vaId?(" · "+state.vaId):"");
   $("user-avatar").textContent = initials(state.name);
-  const sel = $("mode-select"); sel.innerHTML="";
+  const sel = $("mode-select"); clear(sel);
   modesForRole(state.role).forEach(([v,l])=>{ const o=document.createElement("option"); o.value=v; o.textContent=l; sel.appendChild(o); });
-  sel.onchange = ()=>{ state.mode=sel.value; loadNext(); };
+  sel.onchange = ()=>{ state.mode=sel.value; state.typ=null; loadNext(); };
   state.mode = sel.value || "review";
   loadNext();
 }
@@ -277,6 +386,18 @@ async function doLogin(e){
   }
 }
 
+/* ---------- Tastatur (A/R, 1-5 Sterne, Enter = weiter) ---------- */
+function onKey(e){
+  if ($("app-view").hidden) return;
+  const tag = (e.target && e.target.tagName || "").toLowerCase();
+  if (tag === "textarea" || tag === "input" || tag === "select") return;
+  const k = e.key.toLowerCase();
+  if (k === "a"){ selectDecision("approve", null); }
+  else if (k === "r"){ selectDecision("reject", null); }
+  else if (k >= "1" && k <= "5"){ state.rating = Number(k); renderStars(); }
+  else if (k === "enter"){ e.preventDefault(); onNext(); }
+}
+
 /* ---------- Bootstrap ---------- */
 function boot(){
   if (CONFIG.DEMO_MODE) $("demo-note").hidden = false;
@@ -284,11 +405,13 @@ function boot(){
   $("logout-btn").addEventListener("click", ()=>location.reload());
   $("next-btn").addEventListener("click", onNext);
   document.querySelectorAll(".dbtn").forEach(b=> b.addEventListener("click", ()=>selectDecision(b.dataset.d, b)));
+  document.addEventListener("keydown", onKey);
 
-  // Screening-Direkteinstieg (Bewerber, kein Login): ?mode=screening
+  // Screening-Direkteinstieg (Bewerber, kein Login): ?mode=screening&test=<Test-Ref aus sheet-63>
   const params = new URLSearchParams(location.search);
   if (params.get("mode")==="screening"){
-    Object.assign(state, { token:params.get("test")||"demo", role:"applicant", name:"Bewerber", vaId:"", mode:"screening" });
+    Object.assign(state, { token:"", testRef: params.get("test")||"demo",
+      role:"applicant", name:"Bewerber", vaId:"", mode:"screening" });
     $("login-view").hidden=true; $("app-view").hidden=false;
     $("mode-select").hidden=true; $("user-name").textContent="Eignungstest";
     $("user-avatar").textContent="?"; loadNext();

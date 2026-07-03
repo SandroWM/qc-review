@@ -146,7 +146,9 @@ function renderTabs(summary){
   if (!bar) return;
   clear(bar);
   if (!summary || state.mode === "screening"){ bar.hidden = true; return; }
-  const entries = TYPES.map(t => [t, summary[t]||0]);
+  // D27: nur die Typen anzeigen, die das Backend fuer diese Rolle liefert (VA-Rollen ohne Skript/Plan/Konzept).
+  // In der TYPES-Reihenfolge, aber gefiltert auf die tatsaechlich vorhandenen Summary-Keys.
+  const entries = TYPES.filter(t => Object.prototype.hasOwnProperty.call(summary, t)).map(t => [t, summary[t]||0]);
   const total = entries.reduce((s,[,n])=>s+n,0);
   bar.hidden = false;
   const mk = (label, count, typVal) => {

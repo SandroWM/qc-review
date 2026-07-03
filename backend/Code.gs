@@ -25,19 +25,24 @@
 
 // ======================= CONFIG (ausfuellen) =======================
 const CONFIG = {
-  QUEUE_SSID:   "",            // Spreadsheet-ID von sheet-60-qc-queue
-  QUEUE_TAB:    "Sheet1",      // Tab-Name darin (Default-Tab oft "Sheet1"/"Tabellenblatt1")
-  GOLDEN_SSID:  "",            // sheet-64-qc-golden-set
-  GOLDEN_TAB:   "Sheet1",
-  RECRUIT_SSID: "",            // sheet-63-va-recruiting-pipeline
-  RECRUIT_TAB:  "Sheet1",
-  USERS_SSID:   "",            // Spreadsheet, in dem der qc-users-Tab liegt (z.B. dasselbe wie QUEUE_SSID)
+  // Live-SSIDs aus sheets-sync/sheet-registry.json gefuellt (2026-07-03); Tab-Name ist ueberall "Daten" (build_sheets.py-Konvention)
+  QUEUE_SSID:   "1V4A7jwlg6CxinQnM2-rUwCOFEu0wW3eTA3KV1DvCsJo",  // sheet-60-qc-queue
+  QUEUE_TAB:    "Daten",
+  GOLDEN_SSID:  "1naw4FTWdQfR1ks2qgIp1A675Rdy8PR3b95vxiAiQfcI",  // sheet-64-qc-golden-set
+  GOLDEN_TAB:   "Daten",
+  RECRUIT_SSID: "1jDw1wxjqwpKzZor1EAwkFUH5r0sBN46aL9aJ0Kq5JKM",  // sheet-63-va-recruiting-pipeline
+  RECRUIT_TAB:  "Daten",
+  USERS_SSID:   "1V4A7jwlg6CxinQnM2-rUwCOFEu0wW3eTA3KV1DvCsJo",  // qc-users-Tab liegt im QUEUE-Spreadsheet (setup() legt ihn an)
   USERS_TAB:    "qc-users",
-  SKRIPT_SSID:  "",            // sheet-32-marketingtabelle (fuer Content-Typ Skript: Skript-Text-Aufloesung)
-  SKRIPT_TAB:   "Sheet1",
-  DRIVE_FOLDER_ID: "",         // optional: Wurzel der Creator-Bilder (fuer Referenz-/Asset-URLs)
+  SKRIPT_SSID:  "1XBtaGaVyhHJPMj6kxXOntNFmbGcGI00hCgvw5OBiR2o",  // sheet-32-marketingtabelle (Skript-Text-Aufloesung)
+  SKRIPT_TAB:   "Daten",
+  DRIVE_FOLDER_ID: "",         // optional: Wurzel der Creator-Bilder (fuer Referenz-/Asset-URLs) — nach Drive-Bildentscheidung fuellen
   QUOTA_PCT: 30,               // qc-begruendung-quote-prozent (Default; live aus sheet-48)
-  RATE: { "Bild":0.025, "Video":0.06, "editiertes-Video":0.06, "Skript":0.05, "Plan":0.10, "Konzept":0.10 },
+  // Stuecklohn je Content-Typ (W4/D24-kalibriert): Bild 0.04, Video/editiertes-Video 0.08.
+  // VAs sehen NUR Bild/Video/editiertes-Video (Rollen-Sperre, D27); Skript/Plan/Konzept = Tier-0/Sandro,
+  // Saetze hier nur fuer die Sandro-Eigenansicht + spaeteren Marketer-Reviewer-Typ (dormant in sheet-48).
+  RATE: { "Bild":0.04, "Video":0.08, "editiertes-Video":0.08, "Skript":0.05, "Plan":0.0, "Konzept":0.0 },
+  VA_ALLOWED_TYPES: ["Bild","Video","editiertes-Video"],  // D27: nicht-visuelle Typen sind fuer VA-Rollen gesperrt (serverseitiger Guard)
   TOKEN_TTL_MIN: 720,          // Token-Lebensdauer (Minuten)
   HASH_ITER: 5000,             // Passwort-Hash-Iterationen (v2-Format)
   LOGIN_MAX_FAILS: 8,          // Lockout-Schwelle
@@ -179,7 +184,10 @@ function apiNext(body){
   if (mode !== "review" && mode !== "spotcheck")
     return { ok:false, error:"Unbekannter Modus." };
 
-  const typ = TYPES.indexOf(String(body.typ||"")) >= 0 ? String(body.typ) : null;  // Typ-Tab-Filter (D22)
+  let typ = TYPES.indexOf(String(body.typ||"")) >= 0 ? String(body.typ) : null;  // Typ-Tab-Filter (D22)
+  // D27: nicht-visuelle Typen (Skript/Plan/Konzept) sind fuer VA-Rollen gesperrt — verlangt ein VA explizit
+  // einen solchen Tab, wird er ignoriert (kein Item); die Zuweisung filtert sie ohnehin aus.
+  if (typ && !typeAllowed_(p, typ)) return { ok:false, error:"Kein Zugriff auf diesen Aufgaben-Typ." };
   const sh = sheet_(CONFIG.QUEUE_SSID, CONFIG.QUEUE_TAB);
 
   const lock = LockService.getScriptLock();                               // W2-Fix: Race beim Claim
@@ -191,8 +199,8 @@ function apiNext(body){
       row = t.rows.find(r => eligibleSpot_(r) && (!typ || r["Content-Typ"]===typ));
     } else {
       const me = p.v || p.u;
-      row = t.rows.find(r => r["QC-Status"]==="in-review" && r["Assigned-Reviewer"]===me && (!typ || r["Content-Typ"]===typ))
-         || t.rows.find(r => r["QC-Status"]==="pending" && (!typ || r["Content-Typ"]===typ));
+      row = t.rows.find(r => r["QC-Status"]==="in-review" && r["Assigned-Reviewer"]===me && (!typ || r["Content-Typ"]===typ) && typeAllowed_(p, r["Content-Typ"]))
+         || t.rows.find(r => r["QC-Status"]==="pending" && (!typ || r["Content-Typ"]===typ) && typeAllowed_(p, r["Content-Typ"]));
       if (row && row["QC-Status"]==="pending"){
         setCells_(sh, t, row._row, { "QC-Status":"in-review",
           "Assigned-Reviewer": me, "Reviewer-Tier": p.r==="admin"?"0":"1" });
@@ -215,9 +223,16 @@ function eligibleSpot_(r){
   return ["approved","rejected"].indexOf(r["QC-Status"])>=0
     && String(r["Reviewer-Tier"])==="1" && !String(r["Sandro-Spot-Check"]||"").trim();
 }
+// D27: Admin/Tier-0 (Sandro) darf alle Typen; VA-Rollen NUR Bild/Video/editiertes-Video.
+function typeAllowed_(p, typ){
+  if (p && p.r === "admin") return true;
+  return CONFIG.VA_ALLOWED_TYPES.indexOf(String(typ)) >= 0;
+}
 function queueSummary_(t, p, mode){
   const out = {};
-  TYPES.forEach(typ => out[typ] = 0);
+  // D27: VA-Rollen bekommen nur die erlaubten (visuellen) Typen als Tabs; Sandro/Admin alle.
+  const shownTypes = (p && p.r === "admin") ? TYPES : CONFIG.VA_ALLOWED_TYPES;
+  shownTypes.forEach(typ => out[typ] = 0);
   const me = p.v || p.u;
   t.rows.forEach(r => {
     const typ = r["Content-Typ"]; if (!(typ in out)) return;
@@ -266,6 +281,9 @@ function apiSubmit(body){
     const me = p.v || p.u;
     if (row["QC-Status"] !== "in-review" || row["Assigned-Reviewer"] !== me)
       return { ok:false, error:"Item ist dir nicht (mehr) zugewiesen." };
+    // D27: nicht-visuelle Typen (Skript/Plan/Konzept) darf eine VA-Rolle nie entscheiden (serverseitiger Guard).
+    if (!typeAllowed_(p, row["Content-Typ"]))
+      return { ok:false, error:"Kein Zugriff auf diesen Aufgaben-Typ." };
 
     // W2-Fix: 30%-Begruendungs-Quote SERVERSEITIG erzwingen (aus sheet-60 gerechnet, nicht Client-State).
     if (body.decision === "approve" && !just){

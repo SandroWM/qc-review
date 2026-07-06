@@ -8,7 +8,7 @@
    Screening via Test-Ref (?test=...) mit Server-Scoring. */
 
 const CONFIG = {
-  BACKEND_URL: "https://script.google.com/macros/s/AKfycbxFLcQSTF5rS6VibNnR0e2X22hz6h04y2Ytk75FCSk1aZFCJIeXyqlCqts4ECwphj9i/exec",
+  BACKEND_URL: "https://script.google.com/macros/s/AKfycbzMz2-tgzHRm_aPddPpAUiTW1I4NzZNtyF79LDPrkIU2WXfOc7639otJIcpTD1NTy46/exec",
   DEMO_MODE: false,
   QUOTA_PCT: 30,          // qc-begruendung-quote-prozent (Default; live aus sheet-48)
   RATE: { Bild: 0.025, Video: 0.06, "editiertes-Video": 0.06, Skript: 0.05, Plan: 0.10, Konzept: 0.10 }

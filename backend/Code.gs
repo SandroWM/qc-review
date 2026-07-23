@@ -81,6 +81,8 @@ function route(action, body){
   if (action === "dz_history") return dzHistory(body);
   if (action === "dz_undo")    return dzUndo(body);
   if (action === "dz_refresh") return dzRefresh(body);
+  if (action === "dz_esk_ack") return dzEskAck(body);
+  if (action === "dz_enqueue") return dzEnqueue(body);
   return { ok:false, error:"unknown action" };
 }
 

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Wünsche QC Review</title>
+<title>Wünsche Marketing OS + QC Review</title>
 <link rel="stylesheet" href="style.css?v=5" />
 </head>
 <body>
@@ -11,7 +11,7 @@
 <!-- LOGIN -->
 <section id="login-view" class="login-wrap">
   <form id="login-form" class="login-card" autocomplete="off">
-    <div class="brand"><span class="lock" aria-hidden="true">&#128274;</span> Wünsche QC Review</div>
+    <div class="brand"><span class="lock" aria-hidden="true">&#128274;</span> Wünsche Marketing OS + QC Review</div>
     <p class="login-sub">Mit deinen Zugangsdaten einloggen.</p>
     <label>Benutzername<input id="login-user" type="text" required autocomplete="username" /></label>
     <label>Passwort<input id="login-pass" type="password" required autocomplete="current-password" /></label>
@@ -26,8 +26,10 @@
 <!-- APP -->
 <section id="app-view" hidden>
   <header class="topbar">
-    <div class="brand"><span class="lock" aria-hidden="true">&#128274;</span> Wünsche QC Review</div>
+    <div class="brand"><span class="lock" aria-hidden="true">&#128274;</span> Wünsche Marketing OS + QC Review</div>
     <div class="topbar-right">
+      <!-- Desktop: klickbare Tabs · Handy: das bewaehrte Dropdown (CSS schaltet um) -->
+      <nav id="mode-tabs" class="mode-tabs" aria-label="Bereiche"></nav>
       <select id="mode-select" class="mode-select" aria-label="Modus"></select>
       <div class="user-chip">
         <div class="user-meta"><span class="user-state">Eingeloggt</span><span id="user-name" class="user-name"></span></div>
@@ -98,13 +100,92 @@
 
   <div id="screening-done" class="screening-done" hidden></div>
 
-  <!-- Entscheidungszentrale + Cockpit (admin-only; dz.js baut die Inhalte per DOM) -->
+  <!-- Entscheidungszentrale (admin-only; dz.js baut die Inhalte per DOM) -->
   <section id="dz-view" class="dz-wrap" hidden></section>
-  <section id="cockpit-view" class="dz-wrap" hidden></section>
+
+  <!-- Cockpit = AI Marketing OS, 1:1 uebernommen (os.js rendert, os.css scoped das dunkle Theme) -->
+  <section id="cockpit-view" hidden>
+    <div class="wrap">
+      <div class="topbar">
+        <span id="mode-badge" class="badge live">LIVE</span>
+        <button class="ebadge" id="esk-badge" hidden title="Zu den Eskalationen springen"></button>
+        <span class="spacer"></span>
+        <div class="arms" id="arms" role="tablist" aria-label="Ertrags-Arm">
+          <button class="on" data-arm="gesamt">GESAMT</button>
+          <button data-arm="a">ARM A · OF</button>
+          <button data-arm="b">ARM B · FANVUE</button>
+          <button data-arm="c">ARM C · B2B</button>
+        </div>
+        <span class="beat" id="beat"><span class="dot idle"></span><span id="beat-txt">…</span></span>
+        <span class="stamp" id="stamp"></span>
+        <button class="tbtn" id="btn-refresh" title="Collector auf dem PC anstoßen (Marker über das Drive)">↻ Aktualisieren</button>
+      </div>
+
+      <div id="m-briefing"></div>
+
+      <div class="hint-bar">
+        <span class="htip"><b>Tipp:</b> Umsatz / Gewinn / Views / Klicks anklicken &rarr; Aufschlüsselung pro Creator. Arm-Umschalter oben filtert alle Module.</span>
+        <span class="rlabel">Statistik-Zeitraum</span>
+        <div class="range" id="range" role="tablist" aria-label="Statistik-Zeitraum">
+          <button data-range="1">1 T</button>
+          <button class="on" data-range="7">7 T</button>
+          <button data-range="30">30 T</button>
+        </div>
+      </div>
+
+      <div class="grid" id="grid">
+        <section class="card esk" id="card-esk" hidden>
+          <div class="eyebrow">Eskalationen · was auf dich wartet <span class="src">sheet-50 · Spalte „Eskalation"</span></div>
+          <div id="m-esk"></div>
+        </section>
+
+        <section class="card kpi" data-kpi="umsatz" tabindex="0" role="button" aria-label="Umsatz aufschlüsseln"></section>
+        <section class="card kpi" data-kpi="gewinn" tabindex="0" role="button" aria-label="Gewinn aufschlüsseln"></section>
+        <section class="card kpi" data-kpi="views"  tabindex="0" role="button" aria-label="Views aufschlüsseln"></section>
+        <section class="card kpi" data-kpi="klicks" tabindex="0" role="button" aria-label="Klicks aufschlüsseln"></section>
+
+        <div class="drill" id="drill"></div>
+
+        <section class="card wb">
+          <div class="eyebrow">Woran wir arbeiten · alle Projekte <span class="src">WORKBOARD.md · von Claude gepflegt</span></div>
+          <div id="m-workboard"></div>
+        </section>
+
+        <section class="card prio"><div class="eyebrow">Top-Prioritäten · klickbar <span class="src">Backlog + Drift-Log + Watchdog</span></div><div class="plist" id="m-prio"></div></section>
+
+        <section class="card inbox"><div class="eyebrow">Decision-Inbox · Sandro-Gates <span class="src">1 Fenster = Liste leeren</span></div><div class="ilist" id="m-inbox"></div></section>
+
+        <section class="card puls"><div class="eyebrow">System-Puls <span class="src">sheet-50</span></div><div id="m-puls"></div></section>
+
+        <section class="card flotte"><div class="eyebrow">Account-Flotte <span class="src">sheet-35 / 38 / 39 / 54 / 62</span></div><div class="ftable" id="m-flotte"></div></section>
+
+        <section class="card kunden"><div class="eyebrow">Kunden &amp; Pipeline <span class="src">sheet-00-00 / 00-01 / 66 / 67</span></div><div id="m-kunden"></div></section>
+
+        <section class="card cash"><div class="eyebrow">Cash &amp; Runway · Financial Advisor <span class="src">finanzen\ + Konto-CSV</span></div><div id="m-cash"></div></section>
+
+        <section class="card fill"><div class="eyebrow">Account-Fill pro Model · Ziel 10 IG/Model <span class="src">sheet-04-01 / sheet-35</span></div><div id="m-fill"></div></section>
+
+        <section class="card timeline"><div class="eyebrow">Heute · was läuft wann <span class="src">Cron-Cadence + sheet-50</span></div><div id="m-timeline"></div></section>
+
+        <section class="card qc"><div class="eyebrow">QC-Auslastung <span class="src">sheet-60 · Review-Tab</span></div><div id="m-qc"></div></section>
+
+        <section class="card tasks">
+          <div class="eyebrow">Task-Board · aus Transkripten &amp; manuell <span class="src">os-data\tasks\ · ersetzt Notion</span></div>
+          <div class="taskbar" id="m-taskbar"></div>
+          <div class="tgrid" id="m-tasks"></div>
+        </section>
+      </div>
+
+      <footer id="foot"></footer>
+      <div class="warnbox" id="warnbox"></div>
+    </div>
+  </section>
 </section>
 
-<link rel="stylesheet" href="dz.css?v=1" />
+<link rel="stylesheet" href="dz.css?v=2" />
+<link rel="stylesheet" href="os.css?v=1" />
 <script src="app.js?v=6"></script>
-<script src="dz.js?v=1"></script>
+<script src="dz.js?v=2"></script>
+<script src="os.js?v=1"></script>
 </body>
 </html>

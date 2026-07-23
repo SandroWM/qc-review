@@ -1,4 +1,4 @@
-/* Entscheidungszentrale + Cockpit — admin-only Erweiterung der QC-Review-App (2026-07-23).
+﻿/* Entscheidungszentrale + Cockpit — admin-only Erweiterung der QC-Review-App (2026-07-23).
    Backend: decisions.gs (dz_list / dz_decide / dz_history / dz_undo / dz_cockpit / dz_refresh).
    XSS-Politik der App gilt auch hier: Sheet-/Summary-Daten NUR via textContent, nie innerHTML.
    Entscheiden ist ZWEI-Schritt (Wert waehlen -> Entscheiden-Knopf) — gegen Fehlklicks am Handy. */
@@ -35,9 +35,35 @@ function dzSwitchMode(){
   if (tabs && !qc) tabs.hidden = true;
   if (dzV) dzV.hidden = (m !== "dz");
   if (ckV) ckV.hidden = (m !== "cockpit");
+  dzEnsureTabs();
   if (m === "dz") dzLoad();
   else if (m === "cockpit") ckLoad();
   else loadNext();
+}
+
+/* Desktop-Tab-Leiste in der Topbar (Handy behaelt das Dropdown — CSS schaltet um).
+   Wird bei jedem Modus-Wechsel synchronisiert; gebaut nur einmal pro Login. */
+function dzEnsureTabs(){
+  const bar = $("mode-tabs");
+  if (!bar) return;
+  const modi = modesForRole(state.role || "va");
+  if (bar.childElementCount !== modi.length){
+    dzClear(bar);
+    modi.forEach(function(mv){
+      const b = dzEl("button", "mtab", mv[1]);
+      b.dataset.mode = mv[0];
+      b.onclick = function(){
+        const sel = $("mode-select");
+        if (sel) sel.value = mv[0];
+        state.mode = mv[0]; state.typ = null;
+        dzSwitchMode();
+      };
+      bar.appendChild(b);
+    });
+  }
+  Array.from(bar.children).forEach(function(b){
+    b.classList.toggle("active", b.dataset.mode === state.mode);
+  });
 }
 
 /* =================================================================== */
@@ -277,126 +303,13 @@ async function dzToggleVerlauf(gateId, box, btn){
 }
 
 /* =================================================================== */
-/*  COCKPIT (OS-Snapshot aus summary.json via Backend)                  */
+/*  COCKPIT — das komplette AI Marketing OS (os.js/os.css, 1:1-Port).   */
+/*  dz.js reicht nur noch durch: os.js rendert in #cockpit-view und     */
+/*  laedt seine Daten selbst via dz_cockpit (window.osMount).           */
 /* =================================================================== */
 async function ckLoad(){
+  if (window.osMount) return window.osMount();
   const v = $("cockpit-view");
   dzClear(v);
-  v.appendChild(dzEl("div", "dz-loading", "Lade Cockpit-Snapshot …"));
-  try {
-    const r = await api("dz_cockpit", { token: state.token });
-    if (!r || !r.ok) throw new Error((r && r.error) || "dz_cockpit fehlgeschlagen");
-    ckRender(r.summary || {}, r.stand || "");
-  } catch (err){
-    dzClear(v);
-    v.appendChild(dzEl("div", "dz-error", "Cockpit nicht ladbar: " + (err && err.message ? err.message : err)));
-    const retry = dzEl("button", "dz-btn", "Nochmal versuchen");
-    retry.onclick = ckLoad;
-    v.appendChild(retry);
-  }
-}
-
-function ckRender(s, stand){
-  const v = $("cockpit-view");
-  dzClear(v);
-
-  // Kopf: Datenstand + Aktualisieren (Marker-Datei -> PC-Poll alle 10 min) + Neu laden
-  const kopf = dzEl("div", "dz-head");
-  kopf.appendChild(dzEl("strong", null, "Cockpit"));
-  kopf.appendChild(dzEl("span", "dz-stand", "Datenstand: " + (stand ? stand.slice(0,16).replace("T"," ") : "—")));
-  const refresh = dzEl("button", "dz-btn dz-right", "Zahlen aktualisieren");
-  const reload = dzEl("button", "dz-btn", "↻ Neu laden");
-  reload.onclick = ckLoad;
-  kopf.appendChild(refresh);
-  kopf.appendChild(reload);
-  v.appendChild(kopf);
-  const rhint = dzEl("div", "dz-mini");
-  v.appendChild(rhint);
-  refresh.onclick = async () => {
-    refresh.disabled = true;
-    try {
-      const r = await api("dz_refresh", { token: state.token });
-      rhint.textContent = (r && (r.hinweis || r.error)) || "?";
-    } catch (err){ rhint.textContent = String(err); }
-    refresh.disabled = false;
-  };
-
-  const grid = dzEl("div", "ck-grid");
-  v.appendChild(grid);
-
-  // Cash — drei Konten
-  const konten = (s.cash && s.cash.konten) || {};
-  [["gesamt","Gesamt"],["privat","Privat"],["business","Business"]].forEach(([key,label]) => {
-    const k = konten[key];
-    if (!k) return;
-    const box = dzEl("div", "ck-card");
-    box.appendChild(dzEl("div", "ck-lbl", "Cash · " + label));
-    box.appendChild(dzEl("div", "ck-big", dzNum(k.verfuegbar_eur) + " €"));
-    box.appendChild(dzEl("div", "ck-sub", "verfuegbar (" + (k.basis || "") + ")"));
-    const netto = dzEl("div", "ck-val " + ((k.netto_mt||0) < 0 ? "bad" : "ok"),
-      ((k.netto_mt||0) > 0 ? "+" : "") + dzNum(k.netto_mt) + " €/Mt");
-    box.appendChild(netto);
-    const rw = k.traegt_sich ? "traegt sich" : (k.runway_mt != null ? "Runway " + String(k.runway_mt).replace(".",",") + " Mt" : "kein Puffer");
-    box.appendChild(dzEl("div", "ck-sub", rw));
-    if (k.letzter_eingang)
-      box.appendChild(dzEl("div", "ck-sub", "Letzter Eingang: " + k.letzter_eingang.datum + " · " + dzNum(k.letzter_eingang.eur) + " €"));
-    grid.appendChild(box);
-  });
-
-  // Eskalationen
-  const esk = s.eskalationen || {};
-  const eb = dzEl("div", "ck-card" + ((esk.offen_sandro||0) > 0 ? " warn" : ""));
-  eb.appendChild(dzEl("div", "ck-lbl", "Eskalationen (sheet-50)"));
-  eb.appendChild(dzEl("div", "ck-big" + ((esk.offen_sandro||0) > 0 ? " bad" : ""), String(esk.offen_sandro||0)));
-  eb.appendChild(dzEl("div", "ck-sub", "offen an dich · " + (esk.auto_erledigt||0) + " selbst erledigt"));
-  (esk.items || []).filter(i => i.status === "offen").slice(0,4).forEach(i =>
-    eb.appendChild(dzEl("div", "ck-line", "• " + i.sop + " (" + (i.vor_tagen!=null ? "vor " + i.vor_tagen + " T" : "") + ")")));
-  grid.appendChild(eb);
-
-  // System-Puls
-  const h = s.header || {};
-  const r24 = h.runs_24h || {};
-  const pb = dzEl("div", "ck-card");
-  pb.appendChild(dzEl("div", "ck-lbl", "System-Puls"));
-  pb.appendChild(dzEl("div", "ck-big", String(r24.total||0)));
-  pb.appendChild(dzEl("div", "ck-sub", "Laeufe 24 h · " + (r24.ok||0) + " ok · " + (r24.failed||0) + " failed"));
-  pb.appendChild(dzEl("div", "ck-line", h.heartbeat_min_ago != null ? ("Heartbeat vor " + h.heartbeat_min_ago + " min") : "kein Heartbeat"));
-  grid.appendChild(pb);
-
-  // KPIs
-  const kp = s.kpis || {};
-  const kb = dzEl("div", "ck-card");
-  kb.appendChild(dzEl("div", "ck-lbl", "Ertrag & Reichweite"));
-  kb.appendChild(dzEl("div", "ck-big", dzNum(kp.umsatz && kp.umsatz.gesamt) + " €"));
-  kb.appendChild(dzEl("div", "ck-sub", "Umsatz/Monat · Gewinn " + dzNum(kp.gewinn && kp.gewinn.gesamt) + " €"));
-  kb.appendChild(dzEl("div", "ck-line", "Views 7 T: " + dzNum(kp.views && kp.views["7"]) + " · Klicks 7 T: " + dzNum(kp.klicks && kp.klicks["7"])));
-  grid.appendChild(kb);
-
-  // WORKBOARD
-  const wb = s.workboard || [];
-  if (wb.length){
-    const wbox = dzEl("div", "ck-card ck-wide");
-    wbox.appendChild(dzEl("div", "ck-lbl", "Woran wir arbeiten (WORKBOARD)"));
-    const tbl = dzEl("div", "ck-wb");
-    wb.slice(0,10).forEach(w => {
-      tbl.appendChild(dzEl("span", "ck-wb-p", w.emoji || ""));
-      tbl.appendChild(dzEl("span", "ck-wb-t", w.titel || ""));
-      tbl.appendChild(dzEl("span", "ck-wb-s", w.status || ""));
-      tbl.appendChild(dzEl("span", "ck-wb-n", w.next || ""));
-    });
-    wbox.appendChild(tbl);
-    grid.appendChild(wbox);
-  }
-
-  // Collector-Warnungen
-  const warns = s.warnings || [];
-  if (warns.length){
-    const wn = dzEl("div", "ck-card ck-wide dz-warn");
-    wn.appendChild(dzEl("div", "ck-lbl", "Collector-Hinweise"));
-    warns.forEach(w => wn.appendChild(dzEl("div", "ck-line", "• " + w)));
-    grid.appendChild(wn);
-  }
-
-  v.appendChild(dzEl("div", "dz-mini",
-    "Snapshot vom lokalen Collector (2x taeglich + auf Anforderung). Entscheidungen im Tab nebenan sind davon unabhaengig immer live."));
+  v.appendChild(dzEl("div", "dz-error", "os.js nicht geladen — Cockpit nicht verfuegbar."));
 }

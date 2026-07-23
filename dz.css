@@ -1,4 +1,15 @@
 /* Entscheidungszentrale + Cockpit — Styles im Look der QC-App (nutzt deren CSS-Variablen). */
+
+/* Topbar-Navigation: Desktop = klickbare Tabs, Handy = Dropdown (Sandro 2026-07-23:
+   "reicht, wenn das nur fuer PC so ist, am Handy passt es so perfekt"). */
+.mode-tabs{display:none;gap:6px;flex-wrap:wrap}
+.mtab{padding:7px 14px;border:1px solid var(--border-2);background:var(--surface);border-radius:99px;cursor:pointer;font-size:13px;color:var(--text-2)}
+.mtab:hover{background:var(--surface-2)}
+.mtab.active{background:var(--info-bg);color:var(--info);border-color:var(--info);font-weight:600}
+@media (min-width:760px){
+  .mode-tabs{display:flex}
+  .mode-select{display:none}
+}
 .dz-wrap{max-width:1000px;margin:0 auto;padding:14px 18px 60px;display:flex;flex-direction:column;gap:12px}
 .dz-loading{color:var(--text-3);padding:18px 0}
 .dz-error{background:var(--red-bg);color:var(--red);border-radius:var(--radius-sm);padding:10px 12px}

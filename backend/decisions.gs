@@ -353,6 +353,57 @@ function dzRefresh(body){
   }
 }
 
+// ======================= OS-Cockpit-Aktionen (Drive-Dateien statt lokalem serve.py) =======================
+// Eskalations-Quittung: os-data/eskalationen-ack.json im Drive lesen/schreiben — derselbe Vertrag wie
+// serve.py lokal (Quittung bis Zeitstempel; sheet-50 bleibt unangetastet). Der Collector liest die Datei.
+function dzEskAck(body){
+  const p = auth_(body.token);
+  if (p.r !== "admin") return { ok:false, error:"Nur Admin." };
+  const sop = String(body.sop||"").trim();
+  if (!sop) return { ok:false, error:"sop fehlt" };
+  const fid = dzFolderId_("DZ_OSDATA_FOLDER_ID", "os-data", ["agentic-os"]);
+  if (!fid) return { ok:false, error:"os-data-Ordner nicht im Drive gefunden." };
+  const folder = DriveApp.getFolderById(fid);
+  let ack = {}, file = null;
+  const it = folder.getFilesByName("eskalationen-ack.json");
+  if (it.hasNext()){
+    file = it.next();
+    try { ack = JSON.parse(file.getBlob().getDataAsString("UTF-8")) || {}; } catch(e){ ack = {}; }
+  }
+  if (String(body.action||"ack") === "unack") delete ack[sop];
+  else {
+    if (!String(body.bis||"").trim()) return { ok:false, error:"bis (Zeitstempel) fehlt" };
+    ack[sop] = String(body.bis);
+  }
+  const inhalt = JSON.stringify(ack, null, 1);
+  if (file) file.setContent(inhalt); else folder.createFile("eskalationen-ack.json", inhalt);
+  return { ok:true };
+}
+
+// Auftrag in die Claude-Queue: Datei in os-data/auftraege/ (Drive) — Drive-Sync bringt sie auf den PC,
+// der Nacht-Executor (02:36) arbeitet sie ab. Gleiches Dateiformat wie serve.py.
+function dzEnqueue(body){
+  const p = auth_(body.token);
+  if (p.r !== "admin") return { ok:false, error:"Nur Admin." };
+  const titel = String(body.titel||"").trim() || "Auftrag";
+  const auftrag = String(body.auftrag||"").trim();
+  if (!auftrag) return { ok:false, error:"auftrag fehlt" };
+  const fid = dzFolderId_("DZ_OSDATA_FOLDER_ID", "os-data", ["agentic-os"]);
+  if (!fid) return { ok:false, error:"os-data-Ordner nicht im Drive gefunden." };
+  const osFolder = DriveApp.getFolderById(fid);
+  const sub = osFolder.getFoldersByName("auftraege");
+  const ziel = sub.hasNext() ? sub.next() : osFolder.createFolder("auftraege");
+  const slug = titel.toLowerCase().replace(/[äöüß]/g, function(c){ return {"ä":"ae","ö":"oe","ü":"ue","ß":"ss"}[c]; })
+                    .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 48) || "auftrag";
+  const stamp = Utilities.formatDate(new Date(), "Europe/Berlin", "yyyyMMdd-HHmmss");
+  const name = stamp + "-" + slug + ".md";
+  const md = "---\ntitel: " + titel + "\nstatus: offen\nquelle: " + String(body.quelle||"cockpit") +
+             "\nangelegt: " + Utilities.formatDate(new Date(), "Europe/Berlin", "yyyy-MM-dd'T'HH:mm:ss") +
+             "\n---\n" + auftrag + "\n";
+  ziel.createFile(name, md);
+  return { ok:true, file:name };
+}
+
 function dzFolderId_(propKey, name, parentNames){
   const cached = props_().getProperty(propKey);
   if (cached) return cached;

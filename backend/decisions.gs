@@ -152,7 +152,8 @@ function dzList(body){
   DZ_GATES.forEach(function(g){
     const ssid = reg[g.slug];
     const base = { id:g.id, titel:g.titel, sop:g.sop, typ:g.typ, frage:g.frage,
-                   werte:g.decision.werte, kommentarPflicht:g.kommentarPflicht||[] };
+                   werte:g.decision.werte, kommentarPflicht:g.kommentarPflicht||[],
+                   sheetUrl: ssid ? "https://docs.google.com/spreadsheets/d/" + ssid : "" };
     if (!ssid){
       warnings.push(g.slug + " nicht in der Live-Registry (aktivierungs-gated?) — Gate nicht pruefbar");
       gates.push(Object.assign(base, { verfuegbar:false, grund:"Sheet nicht angelegt", items:[], gesamt:0 }));
@@ -221,8 +222,14 @@ function dzCockpit(body){
   if (!id) return { ok:false, error:"summary.json nicht im Drive gefunden — laeuft der Collector?" };
   try {
     const f = DriveApp.getFileById(id);
+    // Sheet-URLs fuer Deep-Links (Decision-Inbox etc.) — Registry-Fehler darf das Cockpit nicht killen.
+    let urls = {};
+    try {
+      const reg = dzRegistry_();
+      Object.keys(reg).forEach(function(k){ urls[k] = "https://docs.google.com/spreadsheets/d/" + reg[k]; });
+    } catch(e){}
     return { ok:true, summary: JSON.parse(f.getBlob().getDataAsString("UTF-8")),
-             stand: f.getLastUpdated().toISOString() };
+             stand: f.getLastUpdated().toISOString(), sheetUrls: urls };
   } catch(e){
     props_().deleteProperty("DZ_SUMMARY_FILE_ID");   // Cache verwerfen — Datei-ID evtl. veraltet
     return { ok:false, error:"summary.json nicht lesbar: " + e };
@@ -452,12 +459,27 @@ function dzTitel_(g, row){
 }
 function dzItem_(g, t, row){
   const ctx = [];
-  (g.kontext||[]).forEach(function(c){
-    if (t.header.indexOf(c) < 0) return;                      // Kandidaten-Spalte fehlt -> weglassen
-    const v = String(row[c]==null?"":row[c]).trim();
-    if (!v) return;
-    ctx.push({ label:c, wert: v.length > 400 ? v.slice(0,400) + "…" : v });
-  });
+  const push = function(label, v){
+    v = String(v==null?"":v).trim();
+    if (!v || ctx.length >= 80) return;
+    ctx.push({ label:label, wert: v.length > 400 ? v.slice(0,400) + "…" : v });
+  };
+  if (g.typ !== "aktion"){
+    // Entscheidungs-Gates: ALLE nicht-leeren Spalten der Zeile, in Sheet-Reihenfolge (Sandro
+    // 2026-07-23: bei einer Persona-Freigabe muss ALLES sichtbar sein, kuratierte Listen liessen
+    // Felder aus). Leere Spalten + die Entscheidungs-Spalte selbst (steht als "aktuell") entfallen.
+    t.header.forEach(function(h){
+      if (!h || h === g.decision.col) return;
+      push(h, row[h]);
+    });
+  } else {
+    // Aktions-Gates (Fanvue/LoRA auf approvten Personas): kuratierte Kurzliste — die volle
+    // Persona-Zeile hat dutzende gefuellte Felder und wuerde die Ausloese-Karte erschlagen.
+    (g.kontext||[]).forEach(function(c){
+      if (t.header.indexOf(c) < 0) return;
+      push(c, row[c]);
+    });
+  }
   return { row: row._row, fp: dzFp_(g, row), titel: dzTitel_(g, row),
            aktuell: g.decision.col ? String(row[g.decision.col]||"") : "", kontext: ctx };
 }

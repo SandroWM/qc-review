@@ -480,8 +480,21 @@ function wireEvents() {
     const b = e.target.closest("button[data-tf]"); if (!b) return;
     TFILTER = b.dataset.tf; renderTasks();
   });
+  // Inbox-Deep-Links: waren im alten OS nur ein Toast-Platzhalter — jetzt echt (Sandro 2026-07-23).
+  // "qc-review-app" -> Review-Tab dieser App; "sheet-XX" -> Live-Google-Sheet (URL aus der Registry).
   document.addEventListener("click", (e) => {
-    const a = e.target.closest("a[data-link]"); if (a) { e.preventDefault(); toast("Deep-Link (Live): " + a.dataset.link + " — öffnet Sheet-Zeile / qc-review-app."); }
+    const a = e.target.closest("a[data-link]"); if (!a) return;
+    e.preventDefault();
+    const link = String(a.dataset.link || "");
+    if (link === "qc-review-app") {
+      const sel = document.getElementById("mode-select");
+      if (sel) { sel.value = "review"; state.mode = "review"; state.typ = null; dzSwitchMode(); }
+      return;
+    }
+    const urls = (DATA && DATA._sheetUrls) || {};
+    const key = Object.keys(urls).find((k) => k === link || k.indexOf(link) === 0);
+    if (key) { window.open(urls[key], "_blank", "noopener"); return; }
+    toast("Kein Live-Sheet gefunden für: " + link);
   });
 }
 const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
@@ -493,6 +506,7 @@ async function loadData() {
   const j = r.summary || {};
   j._live = true;
   j._stand = r.stand || "";
+  j._sheetUrls = r.sheetUrls || {};   // slug -> Google-Sheet-URL (fuer Inbox-Deep-Links)
   return j;
 }
 

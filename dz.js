@@ -164,6 +164,12 @@ function dzGateBlock(g, open){
   sum.appendChild(dzEl("span", "dz-badge" + (g.typ === "entscheidung" ? " crit" : ""), String(g.gesamt)));
   sum.appendChild(dzEl("span", "dz-gate-titel", g.titel));
   sum.appendChild(dzEl("span", "dz-gate-sop", g.sop));
+  if (g.sheetUrl){
+    const a = dzEl("a", "dz-sheetlink", "Google Sheet ↗");
+    a.href = g.sheetUrl; a.target = "_blank"; a.rel = "noopener";
+    a.onclick = function(e){ e.stopPropagation(); };
+    sum.appendChild(a);
+  }
   const vbtn = dzEl("button", "dz-btn dz-btn-mini", "Verlauf");
   sum.appendChild(vbtn);
   box.appendChild(sum);

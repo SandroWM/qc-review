@@ -362,7 +362,8 @@ function showScreeningResult(stats){
 /* ---------- Modus + Login ---------- */
 function modesForRole(role){
   // Entscheidungen + Cockpit sind admin-only (Sandro) — VAs sehen nur ihre Review-Queue.
-  if (role==="admin") return [["review","Review"],["spotcheck","Spot-Check"],["dz","Entscheidungen"],["cockpit","Cockpit"]];
+  // Reihenfolge = Sandro 2026-07-23: Cockpit ist Startansicht, dann Entscheidungen, Review, Spot-Check.
+  if (role==="admin") return [["cockpit","Cockpit"],["dz","Entscheidungen"],["review","Review"],["spotcheck","Spot-Check"]];
   return [["review","Review"]];
 }
 function startApp(){

@@ -361,7 +361,8 @@ function showScreeningResult(stats){
 
 /* ---------- Modus + Login ---------- */
 function modesForRole(role){
-  if (role==="admin") return [["review","Review"],["spotcheck","Spot-Check"]];
+  // Entscheidungen + Cockpit sind admin-only (Sandro) — VAs sehen nur ihre Review-Queue.
+  if (role==="admin") return [["review","Review"],["spotcheck","Spot-Check"],["dz","Entscheidungen"],["cockpit","Cockpit"]];
   return [["review","Review"]];
 }
 function startApp(){
@@ -370,9 +371,9 @@ function startApp(){
   $("user-avatar").textContent = initials(state.name);
   const sel = $("mode-select"); clear(sel);
   modesForRole(state.role).forEach(([v,l])=>{ const o=document.createElement("option"); o.value=v; o.textContent=l; sel.appendChild(o); });
-  sel.onchange = ()=>{ state.mode=sel.value; state.typ=null; loadNext(); };
+  sel.onchange = ()=>{ state.mode=sel.value; state.typ=null; dzSwitchMode(); };
   state.mode = sel.value || "review";
-  loadNext();
+  dzSwitchMode();   // routet: review/spotcheck -> QC-Workspace, dz/cockpit -> eigene Views (dz.js)
 }
 
 async function doLogin(e){
@@ -391,6 +392,7 @@ async function doLogin(e){
 /* ---------- Tastatur (A/R, 1-5 Sterne, Enter = weiter) ---------- */
 function onKey(e){
   if ($("app-view").hidden) return;
+  if (state.mode === "dz" || state.mode === "cockpit") return;   // A/R/Enter nur im QC-Workspace
   const tag = (e.target && e.target.tagName || "").toLowerCase();
   if (tag === "textarea" || tag === "input" || tag === "select") return;
   const k = e.key.toLowerCase();

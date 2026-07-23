@@ -1,0 +1,91 @@
+/* Entscheidungszentrale + Cockpit — Styles im Look der QC-App (nutzt deren CSS-Variablen). */
+.dz-wrap{max-width:1000px;margin:0 auto;padding:14px 18px 60px;display:flex;flex-direction:column;gap:12px}
+.dz-loading{color:var(--text-3);padding:18px 0}
+.dz-error{background:var(--red-bg);color:var(--red);border-radius:var(--radius-sm);padding:10px 12px}
+.dz-mini{font-size:12px;color:var(--text-3);margin-top:4px}
+.dz-warn{background:var(--amber-bg);color:var(--amber);border-radius:var(--radius-sm);padding:10px 12px;font-size:13px}
+.dz-warn div{color:var(--text-2)}
+
+/* Kopf */
+.dz-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.dz-count{font-size:30px;font-weight:600;line-height:1}
+.dz-count.crit{color:var(--red)} .dz-count.ok{color:var(--green)}
+.dz-count-lbl{font-size:14px}
+.dz-stand{font-size:12px;color:var(--text-3)}
+.dz-right{margin-left:auto}
+
+/* Buttons */
+.dz-btn{padding:7px 12px;border:1px solid var(--border-2);background:var(--surface);border-radius:var(--radius-sm);cursor:pointer;font-size:13px;color:var(--text-2)}
+.dz-btn:hover{background:var(--surface-2)}
+.dz-btn:disabled{opacity:.55;cursor:default}
+.dz-btn-mini{padding:3px 9px;font-size:12px}
+.dz-primary{background:var(--info-bg);color:var(--info);border-color:var(--info);font-weight:500}
+
+/* Gate-Block */
+.dz-gate{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:4px 14px 10px}
+.dz-gate-sum{display:flex;align-items:center;gap:10px;padding:9px 0;cursor:pointer;list-style:none;flex-wrap:wrap}
+.dz-gate-sum::-webkit-details-marker{display:none}
+.dz-badge{background:var(--surface-3);border-radius:99px;padding:1px 9px;font-size:12px;font-weight:600;min-width:22px;text-align:center}
+.dz-badge.crit{background:var(--red-bg);color:var(--red)}
+.dz-gate-titel{font-weight:500}
+.dz-gate-sop{font-size:11px;color:var(--text-3)}
+.dz-gate-sum .dz-btn-mini{margin-left:auto}
+.dz-frage{font-size:13px;color:var(--text-2);margin:0 0 8px}
+
+/* Item-Karte */
+.dz-item{border:1px solid var(--border);border-left:3px solid var(--amber);border-radius:var(--radius-sm);padding:10px 12px;margin:8px 0;background:var(--surface)}
+.dz-item.done{border-left-color:var(--green)}
+.dz-done{color:var(--green);font-size:13px}
+.dz-item-kopf{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:6px}
+.dz-aktuell{font-size:11px;color:var(--text-3);background:var(--surface-2);border-radius:99px;padding:1px 8px}
+.dz-ctx{display:grid;grid-template-columns:minmax(110px,max-content) 1fr;gap:2px 12px;margin:0 0 8px;font-size:13px}
+.dz-ctx dt{color:var(--text-3);font-size:12px}
+.dz-ctx dd{margin:0;overflow-wrap:anywhere}
+.dz-werte{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:7px}
+.dz-wert{padding:7px 13px;border-radius:99px;border:1px solid var(--border-2);background:var(--surface);cursor:pointer;font-size:13px}
+.dz-wert:hover{background:var(--surface-2)}
+.dz-wert.sel.dz-w-ok{background:var(--green-bg);color:var(--green);border-color:var(--green);font-weight:600}
+.dz-wert.sel.dz-w-bad{background:var(--red-bg);color:var(--red);border-color:var(--red);font-weight:600}
+.dz-wert.sel.dz-w-mid{background:var(--amber-bg);color:var(--amber);border-color:var(--amber);font-weight:600}
+.dz-kommentar{width:100%;padding:8px 10px;border:1px solid var(--border-2);border-radius:var(--radius-sm);background:var(--surface);resize:vertical}
+.dz-kommentar.req{border-color:var(--red)}
+.dz-item-foot{display:flex;align-items:center;gap:10px;margin-top:7px}
+.dz-hint{font-size:12px;color:var(--red)}
+
+/* Sektionen / Spiegel / Leer */
+.dz-sect{font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--text-3);margin-top:6px}
+.dz-spiegel{background:var(--surface);border:1px dashed var(--border-2);border-radius:var(--radius);padding:10px 14px;font-size:13px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.dz-leer{font-size:12px;color:var(--text-3)}
+
+/* Verlauf */
+.dz-verlauf,.dz-verlauf-global{display:flex;flex-direction:column;gap:5px;margin:6px 0;padding:8px 10px;background:var(--surface-2);border-radius:var(--radius-sm)}
+.dz-vrow{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;font-size:13px;border-bottom:1px solid var(--border);padding:4px 0}
+.dz-vrow:last-child{border-bottom:0}
+.dz-vrow.undone{opacity:.55}
+.dz-vzeit{font-size:11px;color:var(--text-3);white-space:nowrap}
+.dz-vgate{font-size:11px;color:var(--info)}
+.dz-vtitel{font-weight:500}
+.dz-vwert{border-radius:99px;padding:0 8px;font-size:12px;border:1px solid var(--border)}
+.dz-vwert.dz-w-ok{color:var(--green);background:var(--green-bg)}
+.dz-vwert.dz-w-bad{color:var(--red);background:var(--red-bg)}
+.dz-vwert.dz-w-mid{color:var(--amber);background:var(--amber-bg)}
+.dz-vkomm{color:var(--text-2);font-size:12px;overflow-wrap:anywhere}
+.dz-vundo{font-size:11px;color:var(--text-3)}
+.dz-vrow .dz-btn-mini{margin-left:auto}
+
+/* Cockpit */
+.ck-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+.ck-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:13px 15px;display:flex;flex-direction:column;gap:3px}
+.ck-card.warn{border-color:var(--red)}
+.ck-wide{grid-column:1/-1}
+.ck-lbl{font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--text-3)}
+.ck-big{font-size:26px;font-weight:600;line-height:1.15}
+.ck-big.bad{color:var(--red)}
+.ck-val.ok{color:var(--green)} .ck-val.bad{color:var(--red)}
+.ck-sub{font-size:12px;color:var(--text-2)}
+.ck-line{font-size:12.5px;color:var(--text-2);overflow-wrap:anywhere}
+.ck-wb{display:grid;grid-template-columns:max-content minmax(140px,1.1fr) minmax(120px,1fr) minmax(160px,1.4fr);gap:4px 10px;font-size:12.5px}
+.ck-wb span{overflow-wrap:anywhere}
+.ck-wb-t{font-weight:500}
+.ck-wb-s{color:var(--text-2)} .ck-wb-n{color:var(--text-3)}
+@media (max-width:640px){ .ck-wb{grid-template-columns:max-content 1fr} .ck-wb-s,.ck-wb-n{grid-column:2} }

@@ -97,8 +97,14 @@
   </main>
 
   <div id="screening-done" class="screening-done" hidden></div>
+
+  <!-- Entscheidungszentrale + Cockpit (admin-only; dz.js baut die Inhalte per DOM) -->
+  <section id="dz-view" class="dz-wrap" hidden></section>
+  <section id="cockpit-view" class="dz-wrap" hidden></section>
 </section>
 
-<script src="app.js?v=5"></script>
+<link rel="stylesheet" href="dz.css?v=1" />
+<script src="app.js?v=6"></script>
+<script src="dz.js?v=1"></script>
 </body>
 </html>

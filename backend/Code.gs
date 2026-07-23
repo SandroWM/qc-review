@@ -74,6 +74,13 @@ function route(action, body){
   if (action === "login")  return apiLogin(body);
   if (action === "next")   return apiNext(body);
   if (action === "submit") return apiSubmit(body);
+  // Entscheidungszentrale + OS-Cockpit (decisions.gs) — alle serverseitig admin-only.
+  if (action === "dz_list")    return dzList(body);
+  if (action === "dz_decide")  return dzDecide(body);
+  if (action === "dz_cockpit") return dzCockpit(body);
+  if (action === "dz_history") return dzHistory(body);
+  if (action === "dz_undo")    return dzUndo(body);
+  if (action === "dz_refresh") return dzRefresh(body);
   return { ok:false, error:"unknown action" };
 }
 

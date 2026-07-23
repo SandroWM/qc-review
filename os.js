@@ -219,6 +219,20 @@ function renderCash() {
       ${k.transfer_mt ? `<span class="split">${CASHVIEW === "business" ? "Aufladung von Privat" : "Abfluss ans Business"}: ${(k.transfer_mt > 0 ? "+" : "")}${fmt(k.transfer_mt)} €/Mt · in keiner Netto-Zahl (nur verschoben)</span>` : ""}
     </div>
     ${top ? `<div class="insights"><div class="ins-head">Größte Abgänge (${c.fenster_tage || 90} Tage, ohne Umbuchungen)</div>${top}</div>` : ""}
+    ${CASHVIEW === "gesamt" && c.ausblick6 ? (() => {
+      const a = c.ausblick6;
+      const posten = (a.posten || []).map((p) =>
+        `<div class="ins"><span class="idot warn"></span>${esc(p.label)} · ${esc(String(p.datum).slice(5, 7))}/${esc(String(p.datum).slice(0, 4))}<span class="isave warn">${fmt(p.eur)} €</span></div>`).join("");
+      const kEnde = a.konservativ_ende != null ? a.konservativ_ende : a.ende;
+      const endeCls = kEnde > 500 ? "save" : "warn";
+      return `<div class="insights"><div class="ins-head">Komme ich 6 Monate hin? (bis ${esc(a.ende_monat)})</div>
+        <div class="ins"><span class="idot info"></span>Puffer heute (überwiegend Dispo-Spielraum)<span class="isave info">${fmt(a.heute)} €</span></div>
+        <div class="ins"><span class="idot info"></span>Konservativ gerechnet: schwächster Gehaltsmonat ${fmt(a.min_monat_ein)} € − Ausgaben ohne Alt-Steuer = ${a.konservativ_mt >= 0 ? "+" : ""}${fmt(a.konservativ_mt)} €/Mt × 6<span class="isave info">${fmt((a.konservativ_mt || 0) * 6)} €</span></div>
+        ${posten}
+        <div class="ins"><span class="idot ${endeCls}"></span><b>≈ Puffer Ende ${esc(a.ende_monat)} (konservativ)</b><span class="isave ${endeCls}">${fmt(kEnde)} €</span></div>
+        <div class="ins"><span class="idot info"></span>Im 90-T-Schnitt gerechnet (optimistischer, April-Gehalt war hoch)<span class="isave info">${fmt(a.ende)} €</span></div>
+      </div>`;
+    })() : ""}
     <div class="csv-note">Kontostand manuell gepflegt (build_forecast.py) · Buchungen bis ${esc(c.buchungen_bis || "—")}<br>
       ${esc(c.hinweis || "")}</div>`;
 

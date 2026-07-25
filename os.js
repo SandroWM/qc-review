@@ -223,19 +223,24 @@ function renderCash() {
       const a = c.ausblick6;
       // Monatsverlauf mit TIEFPUNKT — eine Endzahl allein kann einen Engpass nicht zeigen:
       // Ausgaben laufen ab dem 1., das Gehalt kommt am 15., der tiefste Stand liegt dazwischen.
+      // Anzeige als echter KONTOSTAND (Privat+Business), nicht als Abstand zum Dispo-Limit —
+      // "1.255 € Puffer" liest sich wie Guthaben, real stehen dort -2.445 €. Limit steht daneben.
+      const kk = (v) => (v.tief_konto != null ? v.tief_konto : v.tief);
+      const ke = (v) => (v.ende_konto != null ? v.ende_konto : v.ende);
       const rows = (a.verlauf || []).map((v) => {
         const cls = v.tief < 0 ? "warn" : (v.tief < 500 ? "warn" : "save");
         const lbl = (v.posten || []).length ? " · " + esc(v.posten.join(", ")) : "";
-        return `<div class="ins"><span class="idot ${cls}"></span>${esc(v.monat)}${lbl}<span class="isave ${cls}">Tiefpunkt ${fmt(v.tief)} € &nbsp;·&nbsp; Ende ${fmt(v.ende)} €</span></div>`;
+        return `<div class="ins"><span class="idot ${cls}"></span>${esc(v.monat)}${lbl}<span class="isave ${cls}">tiefster Stand ${fmt(kk(v))} € &nbsp;·&nbsp; Monatsende ${fmt(ke(v))} €</span></div>`;
       }).join("");
       const eng = a.engster || {};
       const engCls = (eng.tief || 0) < 0 ? "warn" : "save";
-      return `<div class="insights"><div class="ins-head">Komme ich 6 Monate hin? (Tiefpunkt = Monatsmitte, vor dem Gehalt)</div>
-        <div class="ins"><span class="idot info"></span>Puffer heute (überwiegend Dispo-Spielraum)<span class="isave info">${fmt(a.heute)} €</span></div>
+      const engKonto = eng.tief_konto != null ? eng.tief_konto : eng.tief;
+      return `<div class="insights"><div class="ins-head">Komme ich 6 Monate hin? — erwarteter Kontostand (Privat + Business), tiefster Stand = Monatsmitte vor dem Gehalt</div>
+        <div class="ins"><span class="idot info"></span>Kontostand heute<span class="isave info">${fmt(a.heute_konto != null ? a.heute_konto : a.heute)} €</span></div>
+        <div class="ins"><span class="idot info"></span>Dispo-Limit (harte Grenze)<span class="isave info">${fmt(a.dispo_limit != null ? a.dispo_limit : -3700)} €</span></div>
         <div class="ins"><span class="idot info"></span>Typischer Gehaltsmonat (Median) ${fmt(a.median_monat_ein != null ? a.median_monat_ein : a.min_monat_ein)} € − laufende Ausgaben (ohne Alt-Steuer)<span class="isave ${(a.konservativ_mt || 0) < 0 ? "warn" : "save"}">${a.konservativ_mt >= 0 ? "+" : ""}${fmt(a.konservativ_mt)} €/Mt</span></div>
-        <div class="ins"><span class="idot info"></span>Durchhänger im Monat (Ausgaben vor Gehaltseingang)<span class="isave info">−${fmt(a.durchhaenger)} €</span></div>
         ${rows}
-        <div class="ins"><span class="idot ${engCls}"></span><b>Engster Moment: ${esc(eng.monat || "—")}</b><span class="isave ${engCls}">${fmt(eng.tief)} €${(eng.tief || 0) < 0 ? " — Dispo-Limit gerissen" : ""}</span></div>
+        <div class="ins"><span class="idot ${engCls}"></span><b>Engster Moment: ${esc(eng.monat || "—")}</b><span class="isave ${engCls}">${fmt(engKonto)} €${(eng.tief || 0) < 0 ? " — unter dem Dispo-Limit" : ""}</span></div>
       </div>`;
     })() : ""}
     ${(k.fixkosten_korrektur || []).length ? `<div class="insights"><div class="ins-head">Fixkosten-Korrektur (im 90-T-Fenster unterrepräsentiert)</div>${

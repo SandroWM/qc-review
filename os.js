@@ -232,7 +232,7 @@ function renderCash() {
       const engCls = (eng.tief || 0) < 0 ? "warn" : "save";
       return `<div class="insights"><div class="ins-head">Komme ich 6 Monate hin? (Tiefpunkt = Monatsmitte, vor dem Gehalt)</div>
         <div class="ins"><span class="idot info"></span>Puffer heute (überwiegend Dispo-Spielraum)<span class="isave info">${fmt(a.heute)} €</span></div>
-        <div class="ins"><span class="idot info"></span>Konservativ: schwächster Gehaltsmonat ${fmt(a.min_monat_ein)} € − laufende Ausgaben (ohne Alt-Steuer)<span class="isave ${(a.konservativ_mt || 0) < 0 ? "warn" : "save"}">${a.konservativ_mt >= 0 ? "+" : ""}${fmt(a.konservativ_mt)} €/Mt</span></div>
+        <div class="ins"><span class="idot info"></span>Typischer Gehaltsmonat (Median) ${fmt(a.median_monat_ein != null ? a.median_monat_ein : a.min_monat_ein)} € − laufende Ausgaben (ohne Alt-Steuer)<span class="isave ${(a.konservativ_mt || 0) < 0 ? "warn" : "save"}">${a.konservativ_mt >= 0 ? "+" : ""}${fmt(a.konservativ_mt)} €/Mt</span></div>
         <div class="ins"><span class="idot info"></span>Durchhänger im Monat (Ausgaben vor Gehaltseingang)<span class="isave info">−${fmt(a.durchhaenger)} €</span></div>
         ${rows}
         <div class="ins"><span class="idot ${engCls}"></span><b>Engster Moment: ${esc(eng.monat || "—")}</b><span class="isave ${engCls}">${fmt(eng.tief)} €${(eng.tief || 0) < 0 ? " — Dispo-Limit gerissen" : ""}</span></div>

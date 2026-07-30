@@ -22,6 +22,56 @@
  * der OS-Snapshot (summary.json) wird direkt aus dem Drive gelesen — beide via drive.readonly (Scope vorhanden).
  */
 
+// ======================= Drive-Anker (geteilte Ablage) =======================
+// WICHTIG (verifiziert 2026-07-31 gegen die Drive-API, Konto sandro@wuensche-management.com):
+// Namenssuche findet in GETEILTEN ABLAGEN nichts. Dieselbe Abfrage lieferte
+//   Standard-Corpora (= was DriveApp.getFilesByName() macht): 0 Treffer
+//   mit includeItemsFromAllDrives=true:                       1 Treffer (summary.json)
+// getFileById()/getFolderById() funktionieren dagegen auch in geteilten Ablagen. Darum feste IDs.
+// Zweiter Grund: "sheet-registry.json" existiert ZWEIMAL (full-ai-marketing-build = aktuell,
+// wuensche-marketing = Altprojekt) — eine Namenssuche koennte die alte erwischen.
+// Reihenfolge in dzFileId_/dzFolderId_: Script-Property > diese Konstante > Namenssuche (Notnagel).
+// Umzug einer Datei braucht also KEIN Deployment, nur die Property.
+const DZ_IDS = {
+  DZ_SUMMARY_FILE_ID:     "1ETY9ZxJrKp1erchjD-lTTXMCXfQCdGoo",  // .../projects/agentic-os/os-data/summary.json
+  DZ_REGISTRY_FILE_ID:    "1mchGBZyErkBS1EHQf4BT8EAztOAC9Cx_",  // .../full-ai-marketing-build/sheets-sync/sheet-registry.json
+  DZ_OSDATA_FOLDER_ID:    "1LMAqh8WQ5VUgFItlVmAK_hnsjZE22ZRa",  // .../projects/agentic-os/os-data
+  DZ_ACK_FILE_ID:         "1Ew3HqyeYDpiEDFOjevH9tXwvTbSpr8OU",  // os-data/eskalationen-ack.json  (Collector liest sie!)
+  DZ_AUFTRAEGE_FOLDER_ID: "1PvHV-jj71Rko9NLwL4OOBlXrkmNGF7xe"   // os-data/auftraege/            (Nacht-Executor liest ihn!)
+};
+
+// Datei in einem bekannten Ordner holen: ID (Property > Konstante) > Ordner-Suche > null.
+// Der ID-Weg ist nicht nur schneller, er verhindert den gefaehrlichen Fall: laeuft die Ordner-Suche
+// in einer geteilten Ablage leer, wuerde eine ZWEITE Datei gleichen Namens entstehen — der Collector
+// liest dann die alte, die App schreibt in die neue, und beide laufen still auseinander.
+// isTrashed() ist hier NICHT optional: check-refresh.ps1 LOESCHT refresh-request.txt nach jedem Lauf.
+// Ueber den Drive-Sync landet sie im Papierkorb — per ID bleibt sie trotzdem les- und beschreibbar.
+// Ohne diese Pruefung wuerde jeder weitere "Zahlen aktualisieren"-Klick brav in den Papierkorb
+// schreiben, der PC saehe nie wieder einen Marker, und die App meldete trotzdem Erfolg.
+function dzFileInFolder_(propKey, folder, name){
+  const id = props_().getProperty(propKey) || DZ_IDS[propKey];
+  if (id){
+    try {
+      const f = DriveApp.getFileById(id);
+      if (!f.isTrashed()) return f;
+    } catch(e){}
+    props_().deleteProperty(propKey);
+  }
+  const it = folder.getFilesByName(name);
+  while (it.hasNext()){
+    const f = it.next();
+    if (f.isTrashed()) continue;
+    props_().setProperty(propKey, f.getId());
+    return f;
+  }
+  return null;
+}
+function dzCreateInFolder_(propKey, folder, name, inhalt){
+  const f = folder.createFile(name, inhalt);
+  props_().setProperty(propKey, f.getId());
+  return f;
+}
+
 // ======================= Gate-Registry (deklarativ) =======================
 // apply: "col" = Entscheidungs-Spalte setzen · "notiz" = nur strukturierter Notiz-Append (kein eigenes Feld)
 //        "support" = sheet-66-Sonderfall (Notiz immer, Status nur wenn beantwortet/geschlossen gewaehlt)
@@ -350,9 +400,9 @@ function dzRefresh(body){
   try {
     const folder = DriveApp.getFolderById(fid);
     const inhalt = new Date().toISOString() + " " + p.u;
-    const it = folder.getFilesByName("refresh-request.txt");
-    if (it.hasNext()) it.next().setContent(inhalt);
-    else folder.createFile("refresh-request.txt", inhalt);
+    const vorhanden = dzFileInFolder_("DZ_REFRESH_FILE_ID", folder, "refresh-request.txt");
+    if (vorhanden) vorhanden.setContent(inhalt);
+    else dzCreateInFolder_("DZ_REFRESH_FILE_ID", folder, "refresh-request.txt", inhalt);
     return { ok:true, hinweis:"Angefordert — der PC prueft alle 10 Minuten (nur wenn er an ist)." };
   } catch(e){
     props_().deleteProperty("DZ_OSDATA_FOLDER_ID");
@@ -371,10 +421,9 @@ function dzEskAck(body){
   const fid = dzFolderId_("DZ_OSDATA_FOLDER_ID", "os-data", ["agentic-os"]);
   if (!fid) return { ok:false, error:"os-data-Ordner nicht im Drive gefunden." };
   const folder = DriveApp.getFolderById(fid);
-  let ack = {}, file = null;
-  const it = folder.getFilesByName("eskalationen-ack.json");
-  if (it.hasNext()){
-    file = it.next();
+  let ack = {};
+  const file = dzFileInFolder_("DZ_ACK_FILE_ID", folder, "eskalationen-ack.json");
+  if (file){
     try { ack = JSON.parse(file.getBlob().getDataAsString("UTF-8")) || {}; } catch(e){ ack = {}; }
   }
   if (String(body.action||"ack") === "unack") delete ack[sop];
@@ -383,7 +432,8 @@ function dzEskAck(body){
     ack[sop] = String(body.bis);
   }
   const inhalt = JSON.stringify(ack, null, 1);
-  if (file) file.setContent(inhalt); else folder.createFile("eskalationen-ack.json", inhalt);
+  if (file) file.setContent(inhalt);
+  else dzCreateInFolder_("DZ_ACK_FILE_ID", folder, "eskalationen-ack.json", inhalt);
   return { ok:true };
 }
 
@@ -398,8 +448,14 @@ function dzEnqueue(body){
   const fid = dzFolderId_("DZ_OSDATA_FOLDER_ID", "os-data", ["agentic-os"]);
   if (!fid) return { ok:false, error:"os-data-Ordner nicht im Drive gefunden." };
   const osFolder = DriveApp.getFolderById(fid);
-  const sub = osFolder.getFoldersByName("auftraege");
-  const ziel = sub.hasNext() ? sub.next() : osFolder.createFolder("auftraege");
+  const subId = props_().getProperty("DZ_AUFTRAEGE_FOLDER_ID") || DZ_IDS.DZ_AUFTRAEGE_FOLDER_ID;
+  let ziel = null;
+  if (subId){ try { ziel = DriveApp.getFolderById(subId); } catch(e){ props_().deleteProperty("DZ_AUFTRAEGE_FOLDER_ID"); } }
+  if (!ziel){
+    const sub = osFolder.getFoldersByName("auftraege");
+    ziel = sub.hasNext() ? sub.next() : osFolder.createFolder("auftraege");
+    props_().setProperty("DZ_AUFTRAEGE_FOLDER_ID", ziel.getId());
+  }
   const slug = titel.toLowerCase().replace(/[äöüß]/g, function(c){ return {"ä":"ae","ö":"oe","ü":"ue","ß":"ss"}[c]; })
                     .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 48) || "auftrag";
   const stamp = Utilities.formatDate(new Date(), "Europe/Berlin", "yyyyMMdd-HHmmss");
@@ -412,9 +468,9 @@ function dzEnqueue(body){
 }
 
 function dzFolderId_(propKey, name, parentNames){
-  const cached = props_().getProperty(propKey);
+  const cached = props_().getProperty(propKey) || DZ_IDS[propKey];
   if (cached) return cached;
-  const it = DriveApp.getFoldersByName(name);
+  const it = DriveApp.getFoldersByName(name);   // Notnagel: greift in geteilten Ablagen nicht (s.o.)
   let fallback = null;
   while (it.hasNext()){
     const f = it.next();
@@ -505,9 +561,9 @@ function dzRegistry_(){
 
 // Datei im (Shared) Drive per Name finden, per Parent-Ordnernamen disambiguieren, ID in Properties cachen.
 function dzFileId_(propKey, name, parentNames){
-  const cached = props_().getProperty(propKey);
+  const cached = props_().getProperty(propKey) || DZ_IDS[propKey];
   if (cached) return cached;
-  const it = DriveApp.getFilesByName(name);
+  const it = DriveApp.getFilesByName(name);     // Notnagel: greift in geteilten Ablagen nicht (s.o.)
   let fallback = null;
   while (it.hasNext()){
     const f = it.next();
@@ -527,11 +583,64 @@ function dzFileId_(propKey, name, parentNames){
   return fallback;
 }
 
-// Einmal im Editor ausfuehren, um alle Manifest-Scopes (Sheets + Drive) in EINEM Consent zu bewilligen.
+// Einmal im Editor ausfuehren: bewilligt alle Manifest-Scopes (Sheets + Drive) in EINEM Consent —
+// und testet danach die komplette Kette durch, auf der Cockpit/Refresh/Ack/Enqueue stehen.
+// Das Ergebnis wird als os-data/dz-selftest.json abgelegt: ueber den Drive-Sync landet es auf dem PC,
+// dort ist es pruefbar, ohne dass jemand Logs abtippen oder Screenshots schicken muss.
 function dzAuthorize(){
-  Logger.log("Sheets ok: " + SpreadsheetApp.openById(CONFIG.QUEUE_SSID).getName());
-  Logger.log("Drive ok: "  + DriveApp.getRootFolder().getName());
-  Logger.log("Autorisierung vollstaendig.");
+  const schritte = [];
+  const pruefe = function(name, fn){
+    try { schritte.push({ schritt:name, ok:true, info:String(fn()) }); }
+    catch(e){ schritte.push({ schritt:name, ok:false, info:String(e) }); }
+  };
+
+  pruefe("Sheets: Queue oeffnen",  function(){ return SpreadsheetApp.openById(CONFIG.QUEUE_SSID).getName(); });
+  pruefe("Drive: Zugriff",         function(){ return DriveApp.getRootFolder().getName(); });
+  pruefe("summary.json lesen",     function(){
+    const f = DriveApp.getFileById(DZ_IDS.DZ_SUMMARY_FILE_ID);
+    const j = JSON.parse(f.getBlob().getDataAsString("UTF-8"));
+    return f.getName() + " · Stand " + f.getLastUpdated().toISOString() + " · " + Object.keys(j).length + " Bloecke";
+  });
+  pruefe("sheet-registry.json lesen", function(){
+    return Object.keys(JSON.parse(DriveApp.getFileById(DZ_IDS.DZ_REGISTRY_FILE_ID).getBlob().getDataAsString("UTF-8"))).length + " Slugs";
+  });
+  pruefe("os-data-Ordner oeffnen", function(){ return DriveApp.getFolderById(DZ_IDS.DZ_OSDATA_FOLDER_ID).getName(); });
+  pruefe("auftraege-Ordner oeffnen", function(){ return DriveApp.getFolderById(DZ_IDS.DZ_AUFTRAEGE_FOLDER_ID).getName(); });
+  pruefe("eskalationen-ack.json lesen", function(){
+    return DriveApp.getFileById(DZ_IDS.DZ_ACK_FILE_ID).getBlob().getDataAsString("UTF-8").slice(0, 80) || "(leer)";
+  });
+  // Diagnose, kein Fehler: zeigt schwarz auf weiss, ob die Namenssuche in der geteilten Ablage
+  // wirklich leer laeuft. Genau deshalb stehen oben feste IDs.
+  pruefe("Diagnose Namenssuche global (darf leer sein)", function(){
+    let n = 0; const it = DriveApp.getFilesByName("summary.json");
+    while (it.hasNext()){ it.next(); n++; }
+    return n + " Treffer · " + (n ? "Suche funktioniert" : "leer -> feste IDs noetig (erwartet)");
+  });
+  // Entscheidet, ob es ueberhaupt einen Notnagel gibt, falls eine feste ID mal veraltet:
+  // Suche INNERHALB eines per ID geholten Ordners ist etwas anderes als die globale Suche.
+  pruefe("Diagnose Suche im Ordner", function(){
+    let n = 0; const it = DriveApp.getFolderById(DZ_IDS.DZ_OSDATA_FOLDER_ID).getFilesByName("summary.json");
+    while (it.hasNext()){ it.next(); n++; }
+    return n + " Treffer · " + (n ? "Fallback vorhanden" : "kein Fallback -> IDs sind die einzige Quelle");
+  });
+
+  const ergebnis = {
+    lauf: new Date().toISOString(),
+    // Defensiv: das Manifest listet die Scopes explizit, userinfo.email ist NICHT dabei —
+    // getEmail() darf den Selbsttest nicht kippen, nur weil es den Namen nicht liefern kann.
+    konto: (function(){ try { return Session.getEffectiveUser().getEmail() || "(unbekannt)"; }
+                        catch(e){ return "(ohne userinfo.email-Scope nicht lesbar)"; } })(),
+    alles_ok: schritte.every(function(s){ return s.ok; }),
+    schritte: schritte
+  };
+  const inhalt = JSON.stringify(ergebnis, null, 1);
+  try {
+    const folder = DriveApp.getFolderById(DZ_IDS.DZ_OSDATA_FOLDER_ID);
+    const alt = dzFileInFolder_("DZ_SELFTEST_FILE_ID", folder, "dz-selftest.json");
+    if (alt) alt.setContent(inhalt); else dzCreateInFolder_("DZ_SELFTEST_FILE_ID", folder, "dz-selftest.json", inhalt);
+  } catch(e){ Logger.log("Ergebnisdatei nicht schreibbar: " + e); }
+  Logger.log(inhalt);
+  return ergebnis;
 }
 
 // Audit-Log: privates Spreadsheet in My Drive, beim ersten Entscheid automatisch angelegt.

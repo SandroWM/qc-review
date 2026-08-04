@@ -85,15 +85,28 @@ function demoSummary(){
 }
 
 /* ---------- API (Demo oder echt) ---------- */
+// Apps Script beantwortet /exec nicht direkt, sondern leitet auf script.googleusercontent.com um.
+// Diese Weiterleitung faellt sporadisch aus: am 04.08. gemessen 1 Ausfall in 6 Anfragen, in einer
+// zweiten Reihe 0 in 10 — mal trifft es einen, mal keinen. Beim Nutzer kam das bisher als
+// "Netzwerk-/Serverfehler: HTTP 404" an, obwohl am Backend nichts fehlt. Darum wiederholen.
+// Nur 404/5xx werden wiederholt; 4xx sonst sind echte Antworten (z. B. Rechte) und bleiben stehen.
 async function api(action, body){
   if (CONFIG.DEMO_MODE) return demoApi(action, body);
   if (!CONFIG.BACKEND_URL) return { ok:false, error:"Backend nicht konfiguriert (CONFIG.BACKEND_URL)." };
-  const res = await fetch(CONFIG.BACKEND_URL, {
-    method:"POST", headers:{ "Content-Type":"text/plain;charset=utf-8" },
-    body: JSON.stringify(Object.assign({ action }, body))
-  });
-  if (!res.ok) throw new Error("HTTP " + res.status);
-  return res.json();
+  const payload = JSON.stringify(Object.assign({ action }, body));
+  let last = "unbekannter Fehler";
+  for (let versuch = 0; versuch < 3; versuch++){
+    if (versuch) await new Promise(r => setTimeout(r, 400 * versuch));
+    let res;
+    try {
+      res = await fetch(CONFIG.BACKEND_URL, {
+        method:"POST", headers:{ "Content-Type":"text/plain;charset=utf-8" }, body: payload });
+    } catch(e){ last = (e && e.message) || String(e); continue; }
+    if (res.ok) return res.json();
+    last = "HTTP " + res.status;
+    if (res.status !== 404 && res.status < 500) break;
+  }
+  throw new Error(last);
 }
 function demoApi(action, body){
   if (action === "login"){
@@ -402,7 +415,10 @@ async function doChangePw(e){
     $("pw-overlay").hidden = true;
     alert("Passwort geändert." + (r.abgemeldet ? " Alle anderen Sitzungen sind beendet." : ""));
   } catch(err){
-    hint.textContent = "Netzwerk-/Serverfehler: " + (err && err.message ? err.message : err);
+    // Google-Weiterleitung ausgefallen (s. api()). Der Wechsel kann trotzdem geschrieben worden sein —
+    // deshalb hier nicht "fehlgeschlagen" behaupten, sondern den einen Test nennen, der es klaert.
+    hint.textContent = "Verbindung zu Google gestört (" + (err && err.message ? err.message : err)
+      + "). Bitte abmelden und mit dem NEUEN Passwort anmelden — der Wechsel kann trotzdem geklappt haben.";
   } finally { $("pw-save").disabled = false; }
 }
 

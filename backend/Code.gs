@@ -129,13 +129,18 @@ function apiChangePassword(body){
   const alt = String(body.alt||""), neu = String(body.neu||"");
   const u = findUser_(uname);
   if (!u || String(u.Status||"") === "entfernt") return { ok:false, error:"Konto nicht aktiv." };
+  if (neu.length < CONFIG.PW_MIN_LEN)
+    return { ok:false, error:"Neues Passwort: mindestens " + CONFIG.PW_MIN_LEN + " Zeichen." };
   if (!checkPassword_(u, alt)){
+    // Die /exec-Weiterleitung von Apps Script faellt sporadisch aus. Faellt sie NACH dem Schreiben aus,
+    // wiederholt die App den Aufruf — und wuerde hier faelschlich "altes Passwort stimmt nicht" melden,
+    // obwohl der Wechsel durch ist. Gilt bereits das neue Passwort, ist das also ein Erfolg.
+    // Kein Passwort-Orakel: der Fehlversuchszaehler laeuft in JEDEM Fehlerfall mit (8 pro 15 Minuten).
+    if (checkPassword_(u, neu)) return { ok:true, bereits:true };
     c.put(failKey, String(fails+1), CONFIG.LOGIN_LOCK_MIN*60);
     Utilities.sleep(300 + Math.floor(Math.random()*200));
     return { ok:false, error:"Aktuelles Passwort stimmt nicht." };
   }
-  if (neu.length < CONFIG.PW_MIN_LEN)
-    return { ok:false, error:"Neues Passwort: mindestens " + CONFIG.PW_MIN_LEN + " Zeichen." };
   if (neu === alt) return { ok:false, error:"Neues Passwort muss sich vom alten unterscheiden." };
   c.remove(failKey);
 

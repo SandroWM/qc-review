@@ -66,6 +66,8 @@ Live durchklickbar: **2-Button-Entscheidung (Approve / Reject)**, Pflicht-Begrü
 
 **3 — VAs anlegen:** im Apps-Script-Editor `createUser('va-008','StartPasswort','va','va-008','Maria')` (pro VA). Übergabe der Zugangsdaten an den VA via `sop-09-07` (Onboarding-Mail).
 
+**Passwort ändern: in der App, nicht hier.** Schlüssel-Symbol in der Topbar → altes + neues Passwort. `createUser(...)` im Editor ist nur zum **Anlegen** und für vergessene Passwörter gedacht — ein Passwortwechsel darüber würde den Klartext in den Projektcode schreiben, und der landet per clasp im Git-Repo und in der Versionshistorie. Der App-Weg prüft das alte Passwort serverseitig, ist wie der Login gedrosselt (`LOGIN_MAX_FAILS`/`LOGIN_LOCK_MIN`), verlangt `PW_MIN_LEN` Zeichen und setzt einen neuen Salt. Admins können dabei optional alle Sitzungen beenden (globale Token-Version — betrifft auch die VAs).
+
 ## API-Vertrag (Front-end ↔ Backend)
 
 Alle Calls: `POST <BACKEND_URL>` mit JSON-Body, Antwort `{ ok: bool, ... }`.

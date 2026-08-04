@@ -32,7 +32,11 @@ const CONFIG = {
   GOLDEN_TAB:   "Daten",
   RECRUIT_SSID: "1jDw1wxjqwpKzZor1EAwkFUH5r0sBN46aL9aJ0Kq5JKM",  // sheet-63-va-recruiting-pipeline
   RECRUIT_TAB:  "Daten",
-  USERS_SSID:   "1V4A7jwlg6CxinQnM2-rUwCOFEu0wW3eTA3KV1DvCsJo",  // qc-users-Tab liegt im QUEUE-Spreadsheet (setup() legt ihn an)
+  // Eigene, PRIVATE Tabelle unter Claude Code/.credentials/qc-review/ — nicht mehr im QUEUE-Spreadsheet.
+  // Grund (04.08.2026 gemessen): sheet-60-qc-queue liegt unter full-ai-marketing-build und ist an
+  // bodo.buschick@exasync.ai sowie einen exasync-Dienstkonto-Account freigegeben. Benutzerliste,
+  // Rollen, Salts und Hashes waren dort mitlesbar. Die neue Tabelle hat nur sandro@ als Berechtigten.
+  USERS_SSID:   "1_fJjyFBawwa-ypbnCqcLKfoLTEjEC3hik7XaKSBonSo",
   USERS_TAB:    "qc-users",
   SKRIPT_SSID:  "1XBtaGaVyhHJPMj6kxXOntNFmbGcGI00hCgvw5OBiR2o",  // sheet-32-marketingtabelle (Skript-Text-Aufloesung)
   SKRIPT_TAB:   "Daten",

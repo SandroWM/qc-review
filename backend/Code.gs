@@ -47,6 +47,7 @@ const CONFIG = {
   HASH_ITER: 5000,             // Passwort-Hash-Iterationen (v2-Format)
   LOGIN_MAX_FAILS: 8,          // Lockout-Schwelle
   LOGIN_LOCK_MIN: 15,          // Lockout-Dauer (Minuten)
+  PW_MIN_LEN: 12,              // Mindestlaenge beim Passwortwechsel (Passphrase statt Sonderzeichen-Salat)
   SCREENING_ITEMS: 20          // va-screening-items-anzahl (Default; sop-09-07)
 };
 const TYPES = ["Bild","Video","editiertes-Video","Skript","Plan","Konzept"];
@@ -72,6 +73,7 @@ function route(action, body){
     if (action === "submit" || action === "screening_submit") return submitScreening_(body);
   }
   if (action === "login")  return apiLogin(body);
+  if (action === "change_password") return apiChangePassword(body);
   if (action === "next")   return apiNext(body);
   if (action === "submit") return apiSubmit(body);
   // Entscheidungszentrale + OS-Cockpit (decisions.gs) — alle serverseitig admin-only.
@@ -111,6 +113,56 @@ function apiLogin(body){
                              exp: Date.now() + CONFIG.TOKEN_TTL_MIN*60000 });
   return { ok:true, token, role:u.Role, name:u.Name||u.Username, vaId:u["VA-ID"]||"" };
 }
+// Passwortwechsel durch den Nutzer selbst (jede Rolle, nur das EIGENE Konto — der Username kommt aus
+// dem Token, nie aus dem Body). Bewusst hier statt ueber createUser() im Script-Editor: dort stuende das
+// Klartext-Passwort im Projektcode, wanderte per clasp ins Git-Repo und bliebe in der Versionshistorie.
+// Gedrosselt wie der Login — sonst waere dieser Endpunkt ein ungebremstes Orakel fuers alte Passwort.
+function apiChangePassword(body){
+  const p = auth_(body.token);
+  const uname = String(p.u||"").toLowerCase();
+  const c = cache_();
+  const failKey = "pwchg_fail_" + uname;
+  const fails = Number(c.get(failKey) || 0);
+  if (fails >= CONFIG.LOGIN_MAX_FAILS)
+    return { ok:false, error:"Zu viele Fehlversuche — bitte in " + CONFIG.LOGIN_LOCK_MIN + " Minuten erneut." };
+
+  const alt = String(body.alt||""), neu = String(body.neu||"");
+  const u = findUser_(uname);
+  if (!u || String(u.Status||"") === "entfernt") return { ok:false, error:"Konto nicht aktiv." };
+  if (!checkPassword_(u, alt)){
+    c.put(failKey, String(fails+1), CONFIG.LOGIN_LOCK_MIN*60);
+    Utilities.sleep(300 + Math.floor(Math.random()*200));
+    return { ok:false, error:"Aktuelles Passwort stimmt nicht." };
+  }
+  if (neu.length < CONFIG.PW_MIN_LEN)
+    return { ok:false, error:"Neues Passwort: mindestens " + CONFIG.PW_MIN_LEN + " Zeichen." };
+  if (neu === alt) return { ok:false, error:"Neues Passwort muss sich vom alten unterscheiden." };
+  c.remove(failKey);
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const ss = SpreadsheetApp.openById(CONFIG.USERS_SSID || CONFIG.QUEUE_SSID);
+    const sh = ss.getSheetByName(CONFIG.USERS_TAB);
+    const t = table_(sh);
+    const row = t.rows.find(r => String(r.Username).toLowerCase() === uname);
+    if (!row) return { ok:false, error:"Benutzer nicht gefunden." };
+    const salt = Utilities.getUuid();                 // NEUER Salt, nicht nur neuer Hash
+    setCells_(sh, t, row._row, { Salt:salt, PasswordHash: hashPwV2_(salt, neu) });
+  } finally { lock.releaseLock(); }
+
+  // Optional: alle Sitzungen beenden. Die Token-Version ist global — das meldet auch die VAs ab,
+  // deshalb muss die Oberflaeche das ansagen. Diese Sitzung bekommt sofort einen frischen Token,
+  // sonst wuerde man sich mit dem eigenen Klick aussperren.
+  if (body.alleAbmelden === true && p.r === "admin"){
+    const v = String(Number(tokenVersion_())+1);
+    props_().setProperty("TOKEN_VERSION", v);
+    return { ok:true, abgemeldet:true,
+             token: signToken_({ u:p.u, r:p.r, v:p.v||"", tv:v, exp: Date.now() + CONFIG.TOKEN_TTL_MIN*60000 }) };
+  }
+  return { ok:true };
+}
+
 function auth_(token){
   const p = verifyToken_(token);
   if (!p) throw "Sitzung abgelaufen — bitte neu einloggen.";

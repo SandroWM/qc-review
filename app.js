@@ -377,6 +377,35 @@ function startApp(){
   dzSwitchMode();   // routet: review/spotcheck -> QC-Workspace, dz/cockpit -> eigene Views (dz.js)
 }
 
+/* ---------- Passwortwechsel ---------- */
+function openPwDialog(){
+  $("pw-hint").textContent = "";
+  $("pw-form").reset();
+  $("pw-user").textContent = state.name || "";
+  $("pw-all-wrap").hidden = state.role !== "admin";
+  $("pw-overlay").hidden = false;
+  $("pw-alt").focus();
+}
+async function doChangePw(e){
+  e.preventDefault();
+  const alt = $("pw-alt").value, neu = $("pw-neu").value, neu2 = $("pw-neu2").value;
+  const hint = $("pw-hint");
+  if (neu !== neu2){ hint.textContent = "Die beiden neuen Passwörter stimmen nicht überein."; return; }
+  if (neu.length < 12){ hint.textContent = "Neues Passwort: mindestens 12 Zeichen."; return; }
+  $("pw-save").disabled = true; hint.textContent = "Speichere …";
+  try {
+    const r = await api("change_password", { token:state.token, alt, neu,
+                                             alleAbmelden: $("pw-all").checked === true });
+    if (!r || !r.ok){ hint.textContent = (r && r.error) || "Änderung fehlgeschlagen."; return; }
+    if (r.token) state.token = r.token;          // sonst sperrt "alle abmelden" die eigene Sitzung aus
+    $("pw-form").reset();                        // Klartext nicht im Formular stehen lassen
+    $("pw-overlay").hidden = true;
+    alert("Passwort geändert." + (r.abgemeldet ? " Alle anderen Sitzungen sind beendet." : ""));
+  } catch(err){
+    hint.textContent = "Netzwerk-/Serverfehler: " + (err && err.message ? err.message : err);
+  } finally { $("pw-save").disabled = false; }
+}
+
 async function doLogin(e){
   e.preventDefault();
   $("login-hint").textContent="";
@@ -408,6 +437,9 @@ function boot(){
   if (CONFIG.DEMO_MODE) $("demo-note").hidden = false;
   $("login-form").addEventListener("submit", doLogin);
   $("logout-btn").addEventListener("click", ()=>location.reload());
+  $("pw-btn").addEventListener("click", openPwDialog);
+  $("pw-form").addEventListener("submit", doChangePw);
+  $("pw-cancel").addEventListener("click", ()=>{ $("pw-form").reset(); $("pw-overlay").hidden = true; });
   $("next-btn").addEventListener("click", onNext);
   document.querySelectorAll(".dbtn").forEach(b=> b.addEventListener("click", ()=>selectDecision(b.dataset.d, b)));
   document.addEventListener("keydown", onKey);

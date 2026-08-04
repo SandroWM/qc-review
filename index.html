@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Wünsche Marketing OS + QC Review</title>
-<link rel="stylesheet" href="style.css?v=5" />
+<link rel="stylesheet" href="style.css?v=6" />
 </head>
 <body>
 
@@ -35,9 +35,30 @@
         <div class="user-meta"><span class="user-state">Eingeloggt</span><span id="user-name" class="user-name"></span></div>
         <div id="user-avatar" class="avatar"></div>
       </div>
+      <button id="pw-btn" class="icon-btn" title="Passwort ändern" aria-label="Passwort ändern">&#128273;</button>
       <button id="logout-btn" class="icon-btn" title="Logout" aria-label="Logout">&#9099;</button>
     </div>
   </header>
+
+  <!-- Passwortwechsel: bewusst in der App und nicht im Script-Editor (dort landete das Klartext-
+       Passwort im Projektcode und damit im Repo). Server prueft das alte Passwort, gedrosselt. -->
+  <div id="pw-overlay" class="overlay" hidden>
+    <form id="pw-form" class="login-card" autocomplete="off">
+      <div class="brand">Passwort ändern</div>
+      <p class="login-sub">Gilt für dein Konto <b id="pw-user"></b>.</p>
+      <label>Aktuelles Passwort<input id="pw-alt" type="password" required autocomplete="current-password" /></label>
+      <label>Neues Passwort<input id="pw-neu" type="password" required autocomplete="new-password" minlength="12" /></label>
+      <label>Neues Passwort wiederholen<input id="pw-neu2" type="password" required autocomplete="new-password" /></label>
+      <label id="pw-all-wrap" class="pw-check" hidden>
+        <span><input id="pw-all" type="checkbox" /> Alle Sitzungen beenden</span>
+        <span class="pw-note">Meldet auch die VAs ab — sie müssen sich neu anmelden.</span>
+      </label>
+      <button type="submit" id="pw-save">Speichern</button>
+      <button type="button" id="pw-cancel" class="pw-cancel">Abbrechen</button>
+      <div id="pw-hint" class="hint-error" role="alert"></div>
+      <div class="login-demo">Mindestens 12 Zeichen. Eine Passphrase aus vier Wörtern ist sicherer und leichter zu merken als ein kurzer Sonderzeichen-Salat.</div>
+    </form>
+  </div>
 
   <div class="statbar">
     <div class="stat"><span class="stat-label">Heute geprüft</span><span id="st-done" class="stat-val">0</span></div>
@@ -184,7 +205,7 @@
 
 <link rel="stylesheet" href="dz.css?v=3" />
 <link rel="stylesheet" href="os.css?v=1" />
-<script src="app.js?v=7"></script>
+<script src="app.js?v=8"></script>
 <script src="dz.js?v=3"></script>
 <script src="os.js?v=6"></script>
 </body>

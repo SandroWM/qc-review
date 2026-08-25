@@ -17,8 +17,10 @@ Setup jetzt: `setup('EinmalAdminPasswort')` — kein Passwort mehr im Code.
 - **Check-in** (Sandro, `ci.js`/`checkin.gs`, Direktlink `#checkin`) — Daily-Tracking des Minimaltag-Systems
   (grün/joker/rot + Kernblock + Musik + Notiz) nach `os-data/checkins.json` im Drive; Tagesgrenze 04:00
   Europe/Berlin (Nachtschicht), Streak-Regel „nie 2 rote Tage in Folge", 14-Tage-Kacheln, Nachtrag ≤ 7 Tage.
-  Admin-Sessions überleben 30 Tage und werden im localStorage gemerkt (Handy-Reminder ~00:30 ohne Neu-Login);
-  VA-Tokens bleiben bei 12 h.
+  Schnell-Buttons „Grün — Kernblock ✓ · Musik ✓" und „Joker" speichern mit 1 Tap (Push → 2 Taps gesamt);
+  das Detail-Formular bleibt für abweichende Tage. **Der Schreibweg ist PC-unabhängig** (Pages → Apps
+  Script → Drive; der lokale Rechner ist nur nachlaufender Sync-Spiegel). Admin-Sessions überleben
+  30 Tage und werden im localStorage gemerkt (Handy-Reminder ~00:30 ohne Neu-Login); VA-Tokens bleiben bei 12 h.
 
 > **Reviewer-Entscheidung = nur `approve` / `reject` (OK / nicht-OK) + Grund.** Der Mensch entscheidet
 > **nicht**, ob etwas überarbeitet oder neu erstellt wird — das macht die Prozess-Orchestrierung

@@ -102,7 +102,15 @@ async function api(action, body){
       res = await fetch(CONFIG.BACKEND_URL, {
         method:"POST", headers:{ "Content-Type":"text/plain;charset=utf-8" }, body: payload });
     } catch(e){ last = (e && e.message) || String(e); continue; }
-    if (res.ok) return res.json();
+    if (res.ok){
+      const j = await res.json();
+      // Zentraler Sitzungs-Waechter: gemerkte Sitzung (localStorage) ist abgelaufen/revoked ->
+      // nicht in jeder View einzeln scheitern, sondern einmal sauber zum Login zurueck.
+      if (j && !j.ok && /Sitzung abgelaufen/.test(String(j.error||"")) && state.token && action !== "login"){
+        sessionExpired(); return j;
+      }
+      return j;
+    }
     last = "HTTP " + res.status;
     if (res.status !== 404 && res.status < 500) break;
   }
@@ -126,6 +134,23 @@ function demoApi(action, body){
     if (idx < 0) return { ok:true, item:null, stats:demoStats(body.mode), queueSummary:demoSummary() };
     const it = demoItem(DEMO.queue[idx], idx, "qc-00");
     return { ok:true, item:it, reference:it.reference, stats:demoStats(body.mode), queueSummary:demoSummary() };
+  }
+  if (action === "ci_get" || action === "ci_save"){
+    // Demo-Check-in: gleiche 04:00-Wanduhr-Grenze wie live (lokale Zeit ~ Berlin im Demo ausreichend)
+    const now = new Date();
+    const eff = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (now.getHours() < 4 ? 1 : 0));
+    const heute = eff.getFullYear() + "-" + String(eff.getMonth()+1).padStart(2,"0") + "-" + String(eff.getDate()).padStart(2,"0");
+    if (!DEMO.ci){
+      DEMO.ci = {};
+      const tag = (n) => new Date(Date.parse(heute+"T00:00:00Z") - n*86400000).toISOString().slice(0,10);
+      [[1,"gruen"],[2,"gruen"],[3,"joker"],[4,"rot"],[5,"gruen"],[7,"gruen"],[8,"rot"],[9,"rot"],[10,"gruen"]]
+        .forEach(([n,s]) => DEMO.ci[tag(n)] = { status:s, kernblock:s==="gruen", musik:n%2===0, notiz:n===4?"DHL-Doppelschicht, nichts gegangen":"", gespeichert:new Date().toISOString() });
+    }
+    if (action === "ci_save"){
+      DEMO.ci[body.datum] = { status:body.status, kernblock:body.kernblock===true, musik:body.musik===true,
+        notiz:String(body.notiz||""), gespeichert:new Date().toISOString() };
+    }
+    return { ok:true, days:Object.assign({}, DEMO.ci), heute };
   }
   if (action === "submit"){
     if (body.mode === "screening"){
@@ -374,9 +399,9 @@ function showScreeningResult(stats){
 
 /* ---------- Modus + Login ---------- */
 function modesForRole(role){
-  // Entscheidungen + Cockpit sind admin-only (Sandro) — VAs sehen nur ihre Review-Queue.
+  // Entscheidungen + Cockpit + Check-in sind admin-only (Sandro) — VAs sehen nur ihre Review-Queue.
   // Reihenfolge = Sandro 2026-07-23: Cockpit ist Startansicht, dann Entscheidungen, Review, Spot-Check.
-  if (role==="admin") return [["cockpit","Cockpit"],["dz","Entscheidungen"],["review","Review"],["spotcheck","Spot-Check"]];
+  if (role==="admin") return [["cockpit","Cockpit"],["dz","Entscheidungen"],["checkin","Check-in"],["review","Review"],["spotcheck","Spot-Check"]];
   return [["review","Review"]];
 }
 function startApp(){
@@ -386,9 +411,32 @@ function startApp(){
   const sel = $("mode-select"); clear(sel);
   modesForRole(state.role).forEach(([v,l])=>{ const o=document.createElement("option"); o.value=v; o.textContent=l; sel.appendChild(o); });
   sel.onchange = ()=>{ state.mode=sel.value; state.typ=null; dzSwitchMode(); };
+  // Direktlink auf eine Ansicht: #checkin (Kalender-Reminder) o. #dz/#cockpit — nur rollenerlaubte Modi.
+  const wunsch = (location.hash||"").replace(/^#/,"");
+  if (wunsch && modesForRole(state.role).some(([v])=>v===wunsch)) sel.value = wunsch;
   state.mode = sel.value || "review";
-  dzSwitchMode();   // routet: review/spotcheck -> QC-Workspace, dz/cockpit -> eigene Views (dz.js)
+  dzSwitchMode();   // routet: review/spotcheck -> QC-Workspace, dz/cockpit/checkin -> eigene Views
 }
+
+/* ---------- Sitzung merken (localStorage) ----------
+   Grund: der taegliche Check-in (~00:30 vom Handy, Kalender-Link) darf kein Passwort pro Tag
+   kosten. Der Token selbst ist serverseitig begrenzt (admin 30 T, VA 12 h) und revokebar
+   (bumpTokenVersion / "alle Sitzungen beenden"). Logout loescht die gemerkte Sitzung. */
+const SESSION_KEY = "qc_session_v1";
+function saveSession(){
+  try { localStorage.setItem(SESSION_KEY, JSON.stringify({ token:state.token, role:state.role, name:state.name, vaId:state.vaId })); }
+  catch(e){ /* Speichern optional (Private-Mode etc.) */ }
+}
+function clearSession(){ try { localStorage.removeItem(SESSION_KEY); } catch(e){} }
+function restoreSession(){
+  try {
+    const s = JSON.parse(localStorage.getItem(SESSION_KEY) || "null");
+    if (s && s.token && s.role){ Object.assign(state, { token:s.token, role:s.role, name:s.name||"", vaId:s.vaId||"" }); return true; }
+  } catch(e){}
+  return false;
+}
+// Abgelaufene/revokte Sitzung: gemerkte Daten verwerfen und sauber zum Login zurueck.
+function sessionExpired(){ clearSession(); location.reload(); }
 
 /* ---------- Passwortwechsel ---------- */
 function openPwDialog(){
@@ -410,7 +458,7 @@ async function doChangePw(e){
     const r = await api("change_password", { token:state.token, alt, neu,
                                              alleAbmelden: $("pw-all").checked === true });
     if (!r || !r.ok){ hint.textContent = (r && r.error) || "Änderung fehlgeschlagen."; return; }
-    if (r.token) state.token = r.token;          // sonst sperrt "alle abmelden" die eigene Sitzung aus
+    if (r.token){ state.token = r.token; saveSession(); }   // sonst sperrt "alle abmelden" die eigene Sitzung aus
     $("pw-form").reset();                        // Klartext nicht im Formular stehen lassen
     $("pw-overlay").hidden = true;
     alert("Passwort geändert." + (r.abgemeldet ? " Alle anderen Sitzungen sind beendet." : ""));
@@ -429,6 +477,7 @@ async function doLogin(e){
     const r = await api("login", { username:$("login-user").value, password:$("login-pass").value });
     if (!r || !r.ok){ $("login-hint").textContent = (r && r.error) || "Login fehlgeschlagen."; return; }
     Object.assign(state, { token:r.token, role:r.role, name:r.name, vaId:r.vaId });
+    saveSession();
     startApp();
   } catch(err){
     $("login-hint").textContent = "Fehler beim Login: " + (err && err.message ? err.message : err);
@@ -438,7 +487,7 @@ async function doLogin(e){
 /* ---------- Tastatur (A/R, 1-5 Sterne, Enter = weiter) ---------- */
 function onKey(e){
   if ($("app-view").hidden) return;
-  if (state.mode === "dz" || state.mode === "cockpit") return;   // A/R/Enter nur im QC-Workspace
+  if (state.mode === "dz" || state.mode === "cockpit" || state.mode === "checkin") return;   // A/R/Enter nur im QC-Workspace
   const tag = (e.target && e.target.tagName || "").toLowerCase();
   if (tag === "textarea" || tag === "input" || tag === "select") return;
   const k = e.key.toLowerCase();
@@ -452,7 +501,7 @@ function onKey(e){
 function boot(){
   if (CONFIG.DEMO_MODE) $("demo-note").hidden = false;
   $("login-form").addEventListener("submit", doLogin);
-  $("logout-btn").addEventListener("click", ()=>location.reload());
+  $("logout-btn").addEventListener("click", ()=>{ clearSession(); location.reload(); });
   $("pw-btn").addEventListener("click", openPwDialog);
   $("pw-form").addEventListener("submit", doChangePw);
   $("pw-cancel").addEventListener("click", ()=>{ $("pw-form").reset(); $("pw-overlay").hidden = true; });
@@ -468,6 +517,11 @@ function boot(){
     $("login-view").hidden=true; $("app-view").hidden=false;
     $("mode-select").hidden=true; $("user-name").textContent="Eignungstest";
     $("user-avatar").textContent="?"; loadNext();
+    return;
   }
+
+  // Gemerkte Sitzung (z. B. Kalender-Link ~00:30 auf #checkin): direkt rein, ohne Passwort.
+  // Ist der Token abgelaufen, faengt der Sitzungs-Waechter in api() das ab -> Login.
+  if (!CONFIG.DEMO_MODE && restoreSession()) startApp();
 }
 boot();

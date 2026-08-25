@@ -1,0 +1,44 @@
+/* Daily Check-in — Styles im Look der QC-App (nutzt deren CSS-Variablen aus style.css).
+   Mobil-first: grosse Tap-Ziele (>=46px), eine Spalte, Karte mittig. */
+
+.ci-wrap{max-width:560px;margin:0 auto;padding:14px 18px 60px;display:flex;flex-direction:column;gap:12px}
+.ci-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;display:flex;flex-direction:column;gap:12px}
+
+.ci-kopf{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.ci-titel{font-weight:600;font-size:16px}
+.ci-datum-row{display:flex;align-items:center;gap:6px;margin-left:auto}
+.ci-datum{font-size:13.5px;font-weight:500;min-width:104px;text-align:center}
+.ci-mini{font-size:11.5px;color:var(--text-3)}
+.ci-vorhanden{color:var(--amber)}
+.ci-ok{font-size:13px;color:var(--green);background:var(--green-bg);border-radius:var(--radius-sm);padding:7px 10px}
+
+.ci-frage{display:flex;flex-direction:column;gap:6px}
+.ci-frage-lbl{font-size:13px;color:var(--text-2)}
+.ci-pills{display:flex;gap:8px}
+.ci-pill{flex:1;min-height:46px;border:1px solid var(--border-2);background:var(--surface);border-radius:var(--radius-sm);cursor:pointer;font-size:14px;font-weight:500;color:var(--text-2);transition:transform .04s}
+.ci-pill:hover{background:var(--surface-2)}
+.ci-pill:active{transform:scale(.98)}
+.ci-pill.sel{background:var(--info-bg);color:var(--info);border-color:var(--info)}
+.ci-pill.p-gruen.sel{background:var(--green-bg);color:var(--green);border-color:var(--green)}
+.ci-pill.p-joker.sel{background:var(--amber-bg);color:var(--amber);border-color:var(--amber)}
+.ci-pill.p-rot.sel{background:var(--red-bg);color:var(--red);border-color:var(--red)}
+
+.ci-notiz{width:100%;min-height:56px;padding:9px 11px;background:var(--surface);border:1px solid var(--border-2);border-radius:var(--radius-sm);resize:vertical}
+.ci-notiz:focus{outline:2px solid var(--info);outline-offset:1px}
+.ci-save{margin-top:2px}
+
+.ci-streak{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
+.ci-streak-zahl{font-size:34px;font-weight:650;line-height:1;color:var(--green)}
+.ci-streak-zahl.leer{color:var(--text-3)}
+.ci-streak-lbl{font-size:14px;color:var(--text-2)}
+
+.ci-kacheln{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-top:4px}
+.ci-kachel{min-height:42px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface-2);display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
+.ci-kachel:disabled{cursor:default;opacity:.8}
+.ci-kachel-tag{font-size:11px;font-weight:600}
+.k-gruen{background:var(--green-bg);border-color:var(--green);color:var(--green)}
+.k-joker{background:var(--amber-bg);border-color:var(--amber);color:var(--amber)}
+.k-rot{background:var(--red-bg);border-color:var(--red);color:var(--red)}
+.k-leer{color:var(--text-3);border-style:dashed}
+.k-heute .ci-kachel-tag{text-decoration:underline;text-underline-offset:3px}
+.k-akt{outline:2px solid var(--info);outline-offset:1px}

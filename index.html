@@ -124,6 +124,9 @@
   <!-- Entscheidungszentrale (admin-only; dz.js baut die Inhalte per DOM) -->
   <section id="dz-view" class="dz-wrap" hidden></section>
 
+  <!-- Daily Check-in (admin-only; ci.js baut die Inhalte per DOM; Direktlink: #checkin) -->
+  <section id="ci-view" class="ci-wrap" hidden></section>
+
   <!-- Cockpit = AI Marketing OS, 1:1 uebernommen (os.js rendert, os.css scoped das dunkle Theme) -->
   <section id="cockpit-view" hidden>
     <div class="wrap">
@@ -205,8 +208,10 @@
 
 <link rel="stylesheet" href="dz.css?v=3" />
 <link rel="stylesheet" href="os.css?v=1" />
-<script src="app.js?v=9"></script>
-<script src="dz.js?v=3"></script>
+<link rel="stylesheet" href="ci.css?v=1" />
+<script src="app.js?v=10"></script>
+<script src="dz.js?v=4"></script>
 <script src="os.js?v=6"></script>
+<script src="ci.js?v=1"></script>
 </body>
 </html>

@@ -10,10 +10,15 @@ NSFW-Consent-Zeitstempel), Typ-Tabs (Board je Content-Typ inkl. **Skript**), Skr
 XSS-sichere DOM-Erzeugung, Tastatur-Bedienung (A/R, 1–5, Enter), Notfall-Token-Revoke (`bumpTokenVersion()`).
 Setup jetzt: `setup('EinmalAdminPasswort')` — kein Passwort mehr im Code.
 
-**Ein Tool, drei Modi:**
+**Ein Tool, drei Modi** (+ admin-only Ansichten Cockpit, Entscheidungen, Check-in):
 - **Review** (Tier-0 Sandro / Tier-1 VAs) — Live-Queue `sheet-60-qc-queue` prüfen.
 - **Spot-Check** (Sandro / Lead-VA, Meta-QC) — Stichprobe der VA-Entscheidungen re-reviewen (`sop-09-06`).
 - **Screening** (Bewerber) — Golden-Set-Test (`sheet-64-qc-golden-set`), Auto-Scoring → `sheet-63` (`sop-09-07`).
+- **Check-in** (Sandro, `ci.js`/`checkin.gs`, Direktlink `#checkin`) — Daily-Tracking des Minimaltag-Systems
+  (grün/joker/rot + Kernblock + Musik + Notiz) nach `os-data/checkins.json` im Drive; Tagesgrenze 04:00
+  Europe/Berlin (Nachtschicht), Streak-Regel „nie 2 rote Tage in Folge", 14-Tage-Kacheln, Nachtrag ≤ 7 Tage.
+  Admin-Sessions überleben 30 Tage und werden im localStorage gemerkt (Handy-Reminder ~00:30 ohne Neu-Login);
+  VA-Tokens bleiben bei 12 h.
 
 > **Reviewer-Entscheidung = nur `approve` / `reject` (OK / nicht-OK) + Grund.** Der Mensch entscheidet
 > **nicht**, ob etwas überarbeitet oder neu erstellt wird — das macht die Prozess-Orchestrierung
@@ -79,6 +84,8 @@ Alle Calls: `POST <BACKEND_URL>` mit JSON-Body, Antwort `{ ok: bool, ... }`.
 | `login` | `{action, username, password}` | `{ok, token, role, name, vaId}` |
 | `next` | `{action, token, mode}` | `{ok, item, reference, stats}` · `item:null` = Queue leer |
 | `submit` | `{action, token, mode, itemId, decision, rating, begruendung}` | `{ok, stats}` |
+| `ci_get` | `{action, token}` (admin) | `{ok, days:{"YYYY-MM-DD":{status,kernblock,musik,notiz,gespeichert}}, heute}` |
+| `ci_save` | `{action, token, datum, status, kernblock, musik, notiz}` (admin) | `{ok, days, heute}` · idempotent pro Datum, Fenster heute−7 T |
 
 - `mode`: `review` \| `spotcheck` \| `screening`. `decision`: **`approve` \| `reject`** (keine `revision`-Option für den Reviewer).
 - `item`: `{itemId, contentTyp, sourceSop, creatorId, creatorName, assetUrl, vaDecision?}` (`vaDecision` nur im Spot-Check).

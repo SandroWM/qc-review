@@ -28,16 +28,18 @@ function dzWertKlasse(w){
 function dzSwitchMode(){
   const m = state.mode;
   const ws = document.querySelector(".workspace"), sb = document.querySelector(".statbar");
-  const tabs = $("typ-tabs"), dzV = $("dz-view"), ckV = $("cockpit-view");
+  const tabs = $("typ-tabs"), dzV = $("dz-view"), ckV = $("cockpit-view"), ciV = $("ci-view");
   const qc = (m === "review" || m === "spotcheck" || m === "screening");
   if (ws) ws.hidden = !qc;
   if (sb) sb.hidden = !qc;
   if (tabs && !qc) tabs.hidden = true;
   if (dzV) dzV.hidden = (m !== "dz");
   if (ckV) ckV.hidden = (m !== "cockpit");
+  if (ciV) ciV.hidden = (m !== "checkin");
   dzEnsureTabs();
   if (m === "dz") dzLoad();
   else if (m === "cockpit") ckLoad();
+  else if (m === "checkin"){ if (window.ciMount) window.ciMount(); }
   else loadNext();
 }
 

@@ -47,7 +47,12 @@ const CONFIG = {
   // Saetze hier nur fuer die Sandro-Eigenansicht + spaeteren Marketer-Reviewer-Typ (dormant in sheet-48).
   RATE: { "Bild":0.04, "Video":0.08, "editiertes-Video":0.08, "Skript":0.05, "Plan":0.0, "Konzept":0.0 },
   VA_ALLOWED_TYPES: ["Bild","Video","editiertes-Video"],  // D27: nicht-visuelle Typen sind fuer VA-Rollen gesperrt (serverseitiger Guard)
-  TOKEN_TTL_MIN: 720,          // Token-Lebensdauer (Minuten)
+  TOKEN_TTL_MIN: 720,          // Token-Lebensdauer VA-Rollen (Minuten)
+  // Admin-Sessions leben 30 Tage: der taegliche Check-in (~00:30 vom Handy) darf kein
+  // 12-Zeichen-Passwort pro Tag kosten. Abwaegung dokumentiert: privates, gesperrtes Geraet;
+  // Notfall-Revoke existiert doppelt (bumpTokenVersion() im Editor, "alle Sitzungen beenden"
+  // im Passwort-Dialog); VA-Tokens bleiben bei 12 h.
+  TOKEN_TTL_MIN_ADMIN: 43200,
   HASH_ITER: 5000,             // Passwort-Hash-Iterationen (v2-Format)
   LOGIN_MAX_FAILS: 8,          // Lockout-Schwelle
   LOGIN_LOCK_MIN: 15,          // Lockout-Dauer (Minuten)
@@ -89,6 +94,9 @@ function route(action, body){
   if (action === "dz_refresh") return dzRefresh(body);
   if (action === "dz_esk_ack") return dzEskAck(body);
   if (action === "dz_enqueue") return dzEnqueue(body);
+  // Daily Check-in (checkin.gs) — admin-only.
+  if (action === "ci_get")  return ciGet(body);
+  if (action === "ci_save") return ciSave(body);
   return { ok:false, error:"unknown action" };
 }
 
@@ -114,7 +122,7 @@ function apiLogin(body){
   c.remove(failKey);
   maybeUpgradeHash_(u, String(body.password||""));          // Alt-Hash -> v2 (transparent)
   const token = signToken_({ u:u.Username, r:u.Role, v:u["VA-ID"]||"", tv: tokenVersion_(),
-                             exp: Date.now() + CONFIG.TOKEN_TTL_MIN*60000 });
+                             exp: Date.now() + ttlMin_(u.Role)*60000 });
   return { ok:true, token, role:u.Role, name:u.Name||u.Username, vaId:u["VA-ID"]||"" };
 }
 // Passwortwechsel durch den Nutzer selbst (jede Rolle, nur das EIGENE Konto — der Username kommt aus
@@ -167,11 +175,12 @@ function apiChangePassword(body){
     const v = String(Number(tokenVersion_())+1);
     props_().setProperty("TOKEN_VERSION", v);
     return { ok:true, abgemeldet:true,
-             token: signToken_({ u:p.u, r:p.r, v:p.v||"", tv:v, exp: Date.now() + CONFIG.TOKEN_TTL_MIN*60000 }) };
+             token: signToken_({ u:p.u, r:p.r, v:p.v||"", tv:v, exp: Date.now() + ttlMin_(p.r)*60000 }) };
   }
   return { ok:true };
 }
 
+function ttlMin_(role){ return String(role)==="admin" ? CONFIG.TOKEN_TTL_MIN_ADMIN : CONFIG.TOKEN_TTL_MIN; }
 function auth_(token){
   const p = verifyToken_(token);
   if (!p) throw "Sitzung abgelaufen — bitte neu einloggen.";

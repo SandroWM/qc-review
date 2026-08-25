@@ -23,6 +23,11 @@
 .ci-pill.p-joker.sel{background:var(--amber-bg);color:var(--amber);border-color:var(--amber)}
 .ci-pill.p-rot.sel{background:var(--red-bg);color:var(--red);border-color:var(--red)}
 
+.ci-quick{display:flex;gap:8px}
+.ci-quick-btn{min-height:52px;font-size:14px}
+.ci-quick .p-gruen{flex:1.4;background:var(--green-bg);color:var(--green);border-color:var(--green);font-weight:600}
+.ci-quick .p-joker{flex:1;background:var(--amber-bg);color:var(--amber);border-color:var(--amber)}
+
 .ci-notiz{width:100%;min-height:56px;padding:9px 11px;background:var(--surface);border:1px solid var(--border-2);border-radius:var(--radius-sm);resize:vertical}
 .ci-notiz:focus{outline:2px solid var(--info);outline-offset:1px}
 .ci-save{margin-top:2px}

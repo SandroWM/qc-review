@@ -101,6 +101,17 @@ function ciRender(){
   if (est && !ci.feedback)
     card.appendChild(dzEl("div", "ci-mini ci-vorhanden", "Für diesen Tag ist schon ein Eintrag da — Speichern überschreibt ihn."));
 
+  // Schnell abhaken (Sandro-Feedback 25.08.: Push -> 1 Tap = fertig). Speichert sofort;
+  // eine schon vorhandene Tages-Notiz bleibt erhalten (Notiz-Feld ist vorbefuellt).
+  const quick = dzEl("div", "ci-quick");
+  const q1 = dzEl("button", "ci-pill p-gruen ci-quick-btn", "⚡ Grün — Kernblock ✓ · Musik ✓");
+  q1.type = "button";
+  const q2 = dzEl("button", "ci-pill p-joker ci-quick-btn", "Joker — freier Tag");
+  q2.type = "button";
+  quick.appendChild(q1); quick.appendChild(q2);
+  card.appendChild(quick);
+  card.appendChild(dzEl("div", "ci-mini", "… oder im Detail:"));
+
   // Die drei Fragen (je 1 Tap) + Notiz (optional) + Speichern (1 Tap)
   let syncSave = function(){};
   const frage = (label, key, optionen) => {
@@ -140,13 +151,17 @@ function ciRender(){
   const hint = dzEl("div", "dz-hint");
   syncSave = () => { save.disabled = ci.wahl.kernblock == null || ci.wahl.musik == null || !ci.wahl.status; };
   syncSave();
-  save.onclick = async () => {
-    if (ci.busy || save.disabled) return;
-    ci.busy = true; save.disabled = true; save.textContent = "Speichere …"; hint.textContent = "";
+  // Eine Speicherroutine fuer beide Wege (Schnell-Buttons + Detail-Formular). Die vorhandene
+  // Tages-Notiz bleibt bei den Schnell-Buttons erhalten, weil das Notiz-Feld vorbefuellt ist.
+  const speichern = async (wahl, btn) => {
+    if (ci.busy) return;
+    ci.busy = true;
+    const alt = btn.textContent;
+    btn.disabled = true; btn.textContent = "Speichere …"; hint.textContent = "";
     try {
       const r = await api("ci_save", { token: state.token, datum: ci.datum,
-        kernblock: ci.wahl.kernblock === true, musik: ci.wahl.musik === true,
-        status: ci.wahl.status, notiz: ta.value.trim() });
+        kernblock: wahl.kernblock === true, musik: wahl.musik === true,
+        status: wahl.status, notiz: ta.value.trim() });
       if (!r || !r.ok) throw new Error((r && r.error) || "Fehler beim Speichern");
       ci.days = r.days || ci.days;
       if (r.heute) ci.heute = r.heute;
@@ -154,10 +169,13 @@ function ciRender(){
       ciRender();
     } catch (err){
       hint.textContent = String(err && err.message ? err.message : err);
-      save.textContent = "Speichern";
+      btn.textContent = alt; btn.disabled = false;
       syncSave();
     } finally { ci.busy = false; }
   };
+  save.onclick = () => { if (!save.disabled) speichern(ci.wahl, save); };
+  q1.onclick = () => speichern({ kernblock: true,  musik: true,  status: "gruen" }, q1);
+  q2.onclick = () => speichern({ kernblock: false, musik: false, status: "joker" }, q2);
   card.appendChild(save);
   card.appendChild(hint);
   v.appendChild(card);

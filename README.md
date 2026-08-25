@@ -15,12 +15,15 @@ Setup jetzt: `setup('EinmalAdminPasswort')` — kein Passwort mehr im Code.
 - **Spot-Check** (Sandro / Lead-VA, Meta-QC) — Stichprobe der VA-Entscheidungen re-reviewen (`sop-09-06`).
 - **Screening** (Bewerber) — Golden-Set-Test (`sheet-64-qc-golden-set`), Auto-Scoring → `sheet-63` (`sop-09-07`).
 - **Check-in** (Sandro, `ci.js`/`checkin.gs`, Direktlink `#checkin`) — Daily-Tracking des Minimaltag-Systems
-  (grün/joker/rot + Kernblock + Musik + Notiz) nach `os-data/checkins.json` im Drive; Tagesgrenze 04:00
-  Europe/Berlin (Nachtschicht), Streak-Regel „nie 2 rote Tage in Folge", 14-Tage-Kacheln, Nachtrag ≤ 7 Tage.
-  Schnell-Buttons „Grün — Kernblock ✓ · Musik ✓" und „Joker" speichern mit 1 Tap (Push → 2 Taps gesamt);
-  das Detail-Formular bleibt für abweichende Tage. **Der Schreibweg ist PC-unabhängig** (Pages → Apps
-  Script → Drive; der lokale Rechner ist nur nachlaufender Sync-Spiegel). Admin-Sessions überleben
-  30 Tage und werden im localStorage gemerkt (Handy-Reminder ~00:30 ohne Neu-Login); VA-Tokens bleiben bei 12 h.
+  nach `os-data/checkins.json` im Drive; Tagesgrenze 04:00 Europe/Berlin (Nachtschicht), Streak-Regel
+  „nie 2 rote Tage in Folge", 14-Tage-Kacheln, Nachtrag ≤ 7 Tage. **Der Tages-Status wird abgeleitet,
+  nicht abgefragt:** Kernblock (3 h Business) erledigt = Grün; sonst eine Rückfrage „war das geplant?"
+  → Joker/Rot (serverseitiger Konsistenz-Guard; ein Eintrag pro Tag, Speichern ersetzt ihn komplett —
+  die Karte zeigt „Gespeichert: Grün · 19:51 Uhr"). Musik und Sport sind reine Statistik-Felder und
+  brechen die Streak nie. Grün = 2 Taps (Kernblock-Ja → Speichern), Joker-Schnellknopf = 1 Tap.
+  **Der Schreibweg ist PC-unabhängig** (Pages → Apps Script → Drive; der lokale Rechner ist nur
+  nachlaufender Sync-Spiegel). Admin-Sessions überleben 30 Tage und werden im localStorage gemerkt
+  (Handy-Reminder ohne Neu-Login); VA-Tokens bleiben bei 12 h.
 
 > **Reviewer-Entscheidung = nur `approve` / `reject` (OK / nicht-OK) + Grund.** Der Mensch entscheidet
 > **nicht**, ob etwas überarbeitet oder neu erstellt wird — das macht die Prozess-Orchestrierung
@@ -86,8 +89,8 @@ Alle Calls: `POST <BACKEND_URL>` mit JSON-Body, Antwort `{ ok: bool, ... }`.
 | `login` | `{action, username, password}` | `{ok, token, role, name, vaId}` |
 | `next` | `{action, token, mode}` | `{ok, item, reference, stats}` · `item:null` = Queue leer |
 | `submit` | `{action, token, mode, itemId, decision, rating, begruendung}` | `{ok, stats}` |
-| `ci_get` | `{action, token}` (admin) | `{ok, days:{"YYYY-MM-DD":{status,kernblock,musik,notiz,gespeichert}}, heute}` |
-| `ci_save` | `{action, token, datum, status, kernblock, musik, notiz}` (admin) | `{ok, days, heute}` · idempotent pro Datum, Fenster heute−7 T |
+| `ci_get` | `{action, token}` (admin) | `{ok, days:{"YYYY-MM-DD":{status,kernblock,musik,sport,notiz,gespeichert}}, heute}` |
+| `ci_save` | `{action, token, datum, status, kernblock, musik, sport, notiz}` (admin) | `{ok, days, heute}` · idempotent pro Datum, Fenster heute−7 T, Guard status↔kernblock |
 
 - `mode`: `review` \| `spotcheck` \| `screening`. `decision`: **`approve` \| `reject`** (keine `revision`-Option für den Reviewer).
 - `item`: `{itemId, contentTyp, sourceSop, creatorId, creatorName, assetUrl, vaDecision?}` (`vaDecision` nur im Spot-Check).

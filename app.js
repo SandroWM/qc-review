@@ -144,11 +144,11 @@ function demoApi(action, body){
       DEMO.ci = {};
       const tag = (n) => new Date(Date.parse(heute+"T00:00:00Z") - n*86400000).toISOString().slice(0,10);
       [[1,"gruen"],[2,"gruen"],[3,"joker"],[4,"rot"],[5,"gruen"],[7,"gruen"],[8,"rot"],[9,"rot"],[10,"gruen"]]
-        .forEach(([n,s]) => DEMO.ci[tag(n)] = { status:s, kernblock:s==="gruen", musik:n%2===0, notiz:n===4?"DHL-Doppelschicht, nichts gegangen":"", gespeichert:new Date().toISOString() });
+        .forEach(([n,s]) => DEMO.ci[tag(n)] = { status:s, kernblock:s==="gruen", musik:n%2===0, sport:n%3===0, notiz:n===4?"DHL-Doppelschicht, nichts gegangen":"", gespeichert:new Date().toISOString() });
     }
     if (action === "ci_save"){
       DEMO.ci[body.datum] = { status:body.status, kernblock:body.kernblock===true, musik:body.musik===true,
-        notiz:String(body.notiz||""), gespeichert:new Date().toISOString() };
+        sport:body.sport===true, notiz:String(body.notiz||""), gespeichert:new Date().toISOString() };
     }
     return { ok:true, days:Object.assign({}, DEMO.ci), heute };
   }

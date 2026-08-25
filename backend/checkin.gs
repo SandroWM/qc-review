@@ -64,11 +64,18 @@ function ciSave(body){
 
   var status = String(body.status||"");
   if (CI_STATUS.indexOf(status) < 0) return { ok:false, error:"Status muss gruen, joker oder rot sein." };
+  // Konsistenz-Guard (Sandro-Feedback 25.08.: Status wird aus dem Kernblock ABGELEITET, nie
+  // widerspruechlich): kernblock=ja gehoert zu gruen, kernblock=nein zu joker/rot.
+  if (body.kernblock === true && status !== "gruen")
+    return { ok:false, error:"Inkonsistent: Kernblock erledigt => Tag ist gruen." };
+  if (body.kernblock !== true && status === "gruen")
+    return { ok:false, error:"Inkonsistent: gruen setzt einen erledigten Kernblock voraus." };
 
   var eintrag = {
     status: status,
     kernblock: body.kernblock === true,
     musik: body.musik === true,
+    sport: body.sport === true,     // wie Musik: reine Statistik, zaehlt nicht fuer die Streak
     notiz: String(body.notiz||"").trim().slice(0, CI_NOTIZ_MAX),
     gespeichert: new Date().toISOString()
   };

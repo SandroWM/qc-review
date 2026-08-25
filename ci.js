@@ -12,7 +12,24 @@
    Gewohnheit, 1 min/Tag). Der laufende, noch nicht eingetragene Tag unterbricht nichts. */
 
 const ci = { days:{}, heute:null, datum:null, busy:false, feedback:"",
-             wahl:{ kernblock:null, musik:null, status:null } };
+             wahl:{ kernblock:null, geplant:null, musik:null, sport:null } };
+
+/* Tages-Status wird aus dem Kernblock ABGELEITET, nie separat abgefragt (Sandro-Feedback 25.08.:
+   die Status-Buttons waren redundant zu den Fragen und konnten widersprechen).
+   kernblock=ja -> gruen · kernblock=nein + geplant -> joker · kernblock=nein + ungeplant -> rot. */
+function ciAbleiten(w){
+  if (w.kernblock === true) return "gruen";
+  if (w.kernblock === false){
+    if (w.geplant === true) return "joker";
+    if (w.geplant === false) return "rot";
+  }
+  return null;
+}
+const CI_STATUS_TEXT = { gruen: "Grün — Kernblock lief", joker: "Joker — geplanter freier Tag", rot: "Rot — ungeplant nichts" };
+function ciUhr(iso){
+  try { return new Intl.DateTimeFormat("de-DE", { timeZone:"Europe/Berlin", hour:"2-digit", minute:"2-digit" }).format(new Date(iso)); }
+  catch(e){ return ""; }
+}
 
 /* ---------- Datums-Helfer (reine Kalenderrechnung in UTC — DST-fest) ---------- */
 function ciTagUtc(iso){ return Date.parse(iso + "T00:00:00Z"); }
@@ -74,8 +91,10 @@ function ciRender(){
   const v = $("ci-view");
   dzClear(v);
   const est = ci.days[ci.datum] || null;
-  ci.wahl = est ? { kernblock: est.kernblock === true, musik: est.musik === true, status: est.status }
-                : { kernblock: null, musik: null, status: null };
+  ci.wahl = est ? { kernblock: est.kernblock === true,
+                    geplant: est.kernblock === true ? null : est.status === "joker",
+                    musik: est.musik === true, sport: est.sport === true }
+                : { kernblock: null, geplant: null, musik: null, sport: null };
 
   const card = dzEl("div", "ci-card");
 
@@ -98,23 +117,28 @@ function ciRender(){
   card.appendChild(dzEl("div", "ci-mini", "Tagesgrenze 04:00 Uhr — ein Check-in um 00:45 zählt zum Vortag."));
 
   if (ci.feedback) card.appendChild(dzEl("div", "ci-ok", ci.feedback));
-  if (est && !ci.feedback)
-    card.appendChild(dzEl("div", "ci-mini ci-vorhanden", "Für diesen Tag ist schon ein Eintrag da — Speichern überschreibt ihn."));
+  // Sichtbar machen, was aktuell gilt (Sandro-Frage 25.08. nach Doppel-Speichern):
+  // pro Tag existiert genau EIN Eintrag, jedes Speichern ersetzt ihn komplett.
+  if (est){
+    const gz = dzEl("div", "ci-gespeichert st-" + est.status);
+    gz.appendChild(dzEl("strong", null, "Gespeichert: " + (CI_STATUS_TEXT[est.status] || est.status).split(" — ")[0]));
+    gz.appendChild(document.createTextNode(
+      (est.gespeichert ? " · " + ciUhr(est.gespeichert) + " Uhr" : "") + " — erneutes Speichern ersetzt den Eintrag."));
+    card.appendChild(gz);
+  }
 
-  // Schnell abhaken (Sandro-Feedback 25.08.: Push -> 1 Tap = fertig). Speichert sofort;
-  // eine schon vorhandene Tages-Notiz bleibt erhalten (Notiz-Feld ist vorbefuellt).
+  // Einziger Schnellweg: Joker (z. B. Urlaub) = 1 Tap. Der fruehere Gruen-Schnellknopf ist raus —
+  // er behauptete Musik ✓, was Sandros erster echter Eintrag widerlegte; Gruen geht jetzt in
+  // 2 Taps ueber die Kernblock-Frage, ohne falsche Nebendaten.
   const quick = dzEl("div", "ci-quick");
-  const q1 = dzEl("button", "ci-pill p-gruen ci-quick-btn", "⚡ Grün — Kernblock ✓ · Musik ✓");
-  q1.type = "button";
-  const q2 = dzEl("button", "ci-pill p-joker ci-quick-btn", "Joker — freier Tag");
+  const q2 = dzEl("button", "ci-pill p-joker ci-quick-btn", "Joker — geplanter freier Tag (1 Tap)");
   q2.type = "button";
-  quick.appendChild(q1); quick.appendChild(q2);
+  quick.appendChild(q2);
   card.appendChild(quick);
-  card.appendChild(dzEl("div", "ci-mini", "… oder im Detail:"));
 
-  // Die drei Fragen (je 1 Tap) + Notiz (optional) + Speichern (1 Tap)
+  // Klartext-Fragen (Sandro 25.08.); der Tages-Status wird daraus abgeleitet und live angezeigt.
   let syncSave = function(){};
-  const frage = (label, key, optionen) => {
+  const frage = (label, key, optionen, mini) => {
     const row = dzEl("div", "ci-frage");
     row.appendChild(dzEl("div", "ci-frage-lbl", label));
     const wrap = dzEl("div", "ci-pills");
@@ -131,14 +155,21 @@ function ciRender(){
       wrap.appendChild(b);
     });
     row.appendChild(wrap);
+    if (mini) row.appendChild(dzEl("div", "ci-mini", mini));
     return row;
   };
-  card.appendChild(frage("Kernblock erledigt? (17–20 Uhr bzw. 3 h Business + Fenster/Bodo)", "kernblock",
-    [[true, "Ja"], [false, "Nein"]]));
-  card.appendChild(frage("Musik-Stunde gemacht?", "musik",
-    [[true, "Ja"], [false, "Nein"]]));
-  card.appendChild(frage("Tag insgesamt", "status",
-    [["gruen", "Grün", "p-gruen"], ["joker", "Joker", "p-joker"], ["rot", "Rot", "p-rot"]]));
+  card.appendChild(frage("Kernblock (3 h Business) erledigt?", "kernblock",
+    [[true, "Ja"], [false, "Nein"]], "Ja = Tag ist Grün."));
+  const geplantRow = frage("Kein Kernblock — war das vorher geplant?", "geplant",
+    [[true, "Ja — Joker", "p-joker"], [false, "Nein — Rot", "p-rot"]]);
+  geplantRow.classList.add("ci-geplant");
+  card.appendChild(geplantRow);
+  card.appendChild(frage("Musik gemacht?", "musik", [[true, "Ja"], [false, "Nein"]]));
+  card.appendChild(frage("Sport gemacht?", "sport", [[true, "Ja"], [false, "Nein"]]));
+
+  // Live-Anzeige des abgeleiteten Status
+  const statuszeile = dzEl("div", "ci-status-zeile");
+  card.appendChild(statuszeile);
 
   const ta = dzEl("textarea", "ci-notiz");
   ta.rows = 2;
@@ -149,23 +180,34 @@ function ciRender(){
   const save = dzEl("button", "primary ci-save", "Speichern");
   save.type = "button";
   const hint = dzEl("div", "dz-hint");
-  syncSave = () => { save.disabled = ci.wahl.kernblock == null || ci.wahl.musik == null || !ci.wahl.status; };
+  syncSave = () => {
+    const st = ciAbleiten(ci.wahl);
+    // Geplant-Rueckfrage nur zeigen, wenn der Kernblock verneint wurde
+    geplantRow.hidden = ci.wahl.kernblock !== false;
+    dzClear(statuszeile);
+    statuszeile.className = "ci-status-zeile" + (st ? " st-" + st : "");
+    statuszeile.textContent = st ? ("→ Tag zählt als: " + CI_STATUS_TEXT[st])
+                                 : "→ Kernblock-Frage beantworten, der Tages-Status ergibt sich daraus.";
+    save.disabled = !st;
+  };
   syncSave();
-  // Eine Speicherroutine fuer beide Wege (Schnell-Buttons + Detail-Formular). Die vorhandene
-  // Tages-Notiz bleibt bei den Schnell-Buttons erhalten, weil das Notiz-Feld vorbefuellt ist.
+  // Eine Speicherroutine fuer beide Wege (Joker-Schnellknopf + Formular). Musik/Sport ohne
+  // Antwort zaehlen als Nein; eine vorhandene Tages-Notiz bleibt erhalten (Feld ist vorbefuellt).
   const speichern = async (wahl, btn) => {
     if (ci.busy) return;
+    const st = ciAbleiten(wahl);
+    if (!st) return;
     ci.busy = true;
     const alt = btn.textContent;
     btn.disabled = true; btn.textContent = "Speichere …"; hint.textContent = "";
     try {
       const r = await api("ci_save", { token: state.token, datum: ci.datum,
-        kernblock: wahl.kernblock === true, musik: wahl.musik === true,
-        status: wahl.status, notiz: ta.value.trim() });
+        kernblock: wahl.kernblock === true, musik: wahl.musik === true, sport: wahl.sport === true,
+        status: st, notiz: ta.value.trim() });
       if (!r || !r.ok) throw new Error((r && r.error) || "Fehler beim Speichern");
       ci.days = r.days || ci.days;
       if (r.heute) ci.heute = r.heute;
-      ci.feedback = "✓ Eintrag für " + ciSchoen(ci.datum) + " gespeichert.";
+      ci.feedback = "✓ Gespeichert (" + ciSchoen(ci.datum) + ")";
       ciRender();
     } catch (err){
       hint.textContent = String(err && err.message ? err.message : err);
@@ -174,8 +216,8 @@ function ciRender(){
     } finally { ci.busy = false; }
   };
   save.onclick = () => { if (!save.disabled) speichern(ci.wahl, save); };
-  q1.onclick = () => speichern({ kernblock: true,  musik: true,  status: "gruen" }, q1);
-  q2.onclick = () => speichern({ kernblock: false, musik: false, status: "joker" }, q2);
+  q2.onclick = () => speichern({ kernblock: false, geplant: true,
+                                 musik: ci.wahl.musik === true, sport: ci.wahl.sport === true }, q2);
   card.appendChild(save);
   card.appendChild(hint);
   v.appendChild(card);
@@ -189,7 +231,8 @@ function ciRender(){
   skarte.appendChild(sbox);
   skarte.appendChild(dzEl("div", "ci-mini",
     "Regel: nie 2 rote Tage in Folge. Grün & Joker brechen nichts, ein einzelnes Rot auch nicht. " +
-    "Nur eingetragene Tage zählen — eine Lücke beendet die Zählung."));
+    "Nur eingetragene Tage zählen — eine Lücke beendet die Zählung. " +
+    "Die Streak zählt NUR den Kernblock — Musik und Sport sind reine Statistik und können sie nie brechen."));
 
   const grid = dzEl("div", "ci-kacheln");
   for (let i = 13; i >= 0; i--){

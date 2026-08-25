@@ -24,9 +24,19 @@
 .ci-pill.p-rot.sel{background:var(--red-bg);color:var(--red);border-color:var(--red)}
 
 .ci-quick{display:flex;gap:8px}
-.ci-quick-btn{min-height:52px;font-size:14px}
-.ci-quick .p-gruen{flex:1.4;background:var(--green-bg);color:var(--green);border-color:var(--green);font-weight:600}
+.ci-quick-btn{min-height:48px;font-size:13.5px}
 .ci-quick .p-joker{flex:1;background:var(--amber-bg);color:var(--amber);border-color:var(--amber)}
+
+.ci-gespeichert{font-size:13px;border-radius:var(--radius-sm);padding:8px 10px;border:1px solid var(--border)}
+.ci-gespeichert.st-gruen{background:var(--green-bg);color:var(--green);border-color:var(--green)}
+.ci-gespeichert.st-joker{background:var(--amber-bg);color:var(--amber);border-color:var(--amber)}
+.ci-gespeichert.st-rot{background:var(--red-bg);color:var(--red);border-color:var(--red)}
+
+.ci-geplant[hidden]{display:none}
+.ci-status-zeile{font-size:13px;font-weight:500;color:var(--text-3);padding:7px 10px;background:var(--surface-2);border-radius:var(--radius-sm)}
+.ci-status-zeile.st-gruen{background:var(--green-bg);color:var(--green)}
+.ci-status-zeile.st-joker{background:var(--amber-bg);color:var(--amber)}
+.ci-status-zeile.st-rot{background:var(--red-bg);color:var(--red)}
 
 .ci-notiz{width:100%;min-height:56px;padding:9px 11px;background:var(--surface);border:1px solid var(--border-2);border-radius:var(--radius-sm);resize:vertical}
 .ci-notiz:focus{outline:2px solid var(--info);outline-offset:1px}

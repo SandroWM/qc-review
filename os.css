@@ -137,6 +137,12 @@ button{font-family:inherit}
 .wbstatus{color:var(--muted);font-size:11.5px;line-height:1.4}
 .wbnext{color:var(--ink);line-height:1.45}
 .wbchat{font-family:var(--mono);font-size:10px;color:var(--accent);line-height:1.4}
+/* eingeklappter Erledigt/Geparkt-Bereich (Sandro 2026-08-31), Standard: zu */
+.wbdone{margin-top:8px}
+.wbdone summary{cursor:pointer;font-family:var(--mono);font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:var(--faint)}
+.wbdone summary:hover{color:var(--muted)}
+.wbdone[open] summary{margin-bottom:4px}
+.wbdone .wbtable{opacity:.6}
 
 /* Prioritäten */
 .prio{grid-column:span 5}

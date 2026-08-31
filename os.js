@@ -93,6 +93,23 @@ function renderKpis() {
   $('.kpi[data-kpi="klicks"]').innerHTML = kpiCard("klicks", "Link-Klicks · " + rlab, "sheet-37 · Primär-KPI", kv, {});
 }
 
+/* Erledigt-Erkennung (Sandro 2026-08-31: Erledigtes gehoert nicht mehr in die operative Liste).
+   Marker laut echtem WORKBOARD-Bestand — bewusst nur am ANFANG von Titel/Status:
+     - Titel beginnt mit "✅"                          -> Strang geschlossen
+     - Status beginnt (ohne Markdown-Sternchen) mit "erledigt"/"done"
+     - Titel beginnt mit "⚪" oder traegt "⚪ GEPARKT"  -> ruht per Sandro-Entscheid; Geparktes
+       gehoert lt. Collector-Regel (2026-07-16) nicht ins operative Cockpit, rutscht aber durch,
+       solange der Strang noch in einer aktiven WORKBOARD-Sektion steht.
+   Ein "✅"/"ERLEDIGT" MITTEN im Text zaehlt NICHT: das sind Teilschritte offener Straenge
+   (z. B. "AVV — ✅ … UNTERSCHRIEBEN", Status "✅ vollstaendig live", "Notion ERLEDIGT …
+   offen nur noch Supabase"). */
+function istErledigt(titel, status) {
+  const t = String(titel || "").trim();
+  const s = String(status || "").replace(/[*_~`]/g, "").replace(/^[\s✅✓]+/, "").toLowerCase();
+  return t.startsWith("✅") || t.startsWith("⚪") || t.includes("⚪ GEPARKT")
+      || /^(erledigt|done)\b/.test(s);
+}
+
 function renderWorkboard() {
   const wb = DATA.workboard || [];
   const host = el("m-workboard");
@@ -100,17 +117,30 @@ function renderWorkboard() {
   const cut = (s, n) => (s && s.length > n ? s.slice(0, n) + "…" : (s || "—"));
   const head = ["Prio", "Thema", "Status", "Nächster Schritt", "Chat"]
     .map((h) => `<div class="h">${h}</div>`).join("");
-  const rows = wb.map((w) => `
+  const row = (w) => `
     <div class="wbprio" title="${esc(w.sektion)}">${esc(w.emoji)}</div>
     <div class="wbtitel">${esc(w.titel)}</div>
     <div class="wbstatus" title="${esc(w.status)}">${esc(cut(w.status, 74))}</div>
     <div class="wbnext" title="${esc(w.next)}">${esc(cut(w.next, 175))}</div>
-    <div class="wbchat">${esc(w.chat || "—")}</div>`).join("");
-  host.innerHTML = `<div class="wbwrap"><div class="wbtable">${head}${rows}</div></div>`;
+    <div class="wbchat">${esc(w.chat || "—")}</div>`;
+  const offen = wb.filter((w) => !istErledigt(w.titel, w.status));
+  const done = wb.filter((w) => istErledigt(w.titel, w.status));
+  const tabelle = offen.length
+    ? `<div class="wbwrap"><div class="wbtable">${head}${offen.map(row).join("")}</div></div>`
+    : `<div class="empty">Nichts Offenes — alle Stränge erledigt oder geparkt.</div>`;
+  const klappe = done.length
+    ? `<details class="wbdone"><summary>Erledigt / geparkt (${done.length})</summary>
+       <div class="wbwrap"><div class="wbtable">${head}${done.map(row).join("")}</div></div></details>`
+    : "";
+  host.innerHTML = tabelle + klappe;
 }
 
 function renderPrio() {
-  el("m-prio").innerHTML = (DATA.prioritaeten || []).map((p, i) => `
+  // Erledigt-markierte Eintraege raus; der Original-Index i MUSS erhalten bleiben —
+  // die Buttons greifen per data-i direkt in DATA.prioritaeten (Klick-Handler in wireEvents).
+  const offen = (DATA.prioritaeten || []).map((p, i) => ({ p, i }))
+    .filter((x) => !istErledigt(x.p.titel, x.p.status));
+  el("m-prio").innerHTML = offen.map(({ p, i }) => `
     <div class="pitem" data-i="${i}" tabindex="0">
       <div class="prow"><span class="ptag ${esc(p.prio)}">${esc(p.prio)}</span><span class="ptitle">${esc(p.titel)}</span></div>
       <div class="psrc">${esc(p.quelle)}${p.frist ? " · Frist " + esc(p.frist) : ""}</div>

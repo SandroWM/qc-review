@@ -179,7 +179,7 @@ function demoStats(mode){
 function initials(s){ return (s||"?").replace(/[^a-zA-ZäöüÄÖÜ ]/g,"").split(/\s|-/).map(w=>w[0]).join("").slice(0,2).toUpperCase(); }
 function clear(el){ while (el.firstChild) el.removeChild(el.firstChild); }
 
-function renderTabs(summary){
+function renderTabs(summary, item){
   const bar = $("typ-tabs");
   if (!bar) return;
   clear(bar);
@@ -201,6 +201,24 @@ function renderTabs(summary){
   };
   mk("Alle", total, null);
   entries.forEach(([t,n]) => { if (n > 0 || state.typ === t) mk(t, n, t); });
+
+  // Ueberspringen (Bugfix 2026-08-31): apiNext liefert per .find() IMMER nur das erste
+  // in-review-Item des Reviewers (Code.gs "row = t.rows.find(... QC-Status==='in-review' ...)").
+  // Ein Item, das der Reviewer gerade nicht entscheiden kann, verdeckt damit im Tab "Alle"
+  // dauerhaft alle dahinterliegenden offenen Items. Der Sprung setzt den Typ-Filter auf den
+  // naechsten Typ mit offenen Items und macht sie so erreichbar.
+  const offen = entries.filter(([,n]) => n > 0).map(([t]) => t);
+  if (offen.length > 1){
+    const cur = (item && item.contentTyp) ? item.contentTyp : state.typ;
+    const ziel = offen[(offen.indexOf(cur) + 1) % offen.length];   // nicht gefunden (-1) -> offen[0]
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "tbtn tbtn-skip";
+    b.title = "Dieses Item zurueckstellen und das naechste offene Item eines anderen Typs zeigen";
+    b.textContent = "Überspringen → " + ziel;
+    b.onclick = () => { state.typ = ziel; loadNext(); };
+    bar.appendChild(b);
+  }
 }
 
 function renderAsset(asset, contentTyp){
@@ -229,7 +247,7 @@ function renderItem(item, reference, stats, summary){
   $("review-hint").textContent = "";
   $("just").value = ""; $("just").classList.remove("req");
   document.querySelectorAll(".dbtn").forEach(b=>b.className="dbtn");
-  updateJustLabel(); renderStars(); renderTabs(summary);
+  updateJustLabel(); renderStars(); renderTabs(summary, item);
 
   if (!item){
     if (state.mode === "screening") return showScreeningResult(stats);

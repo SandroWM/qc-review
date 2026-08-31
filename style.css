@@ -59,6 +59,7 @@ code{background:var(--surface-2);padding:1px 5px;border-radius:5px;font-size:.9e
 .tbtn.active{background:var(--info-bg);color:var(--info);border-color:var(--info);font-weight:500}
 .tbtn .tcount{background:var(--surface-3);border-radius:99px;padding:0 7px;font-size:11px;min-width:18px;text-align:center}
 .tbtn.active .tcount{background:var(--surface)}
+.tbtn-skip{border-style:dashed;color:var(--text-3)}
 
 /* WORKSPACE */
 .workspace{display:grid;grid-template-columns:1.55fr 1fr;gap:14px;padding:0 18px 24px;max-width:1000px;margin:0 auto}

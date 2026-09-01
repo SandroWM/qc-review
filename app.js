@@ -351,7 +351,9 @@ async function onNext(){
   const needReject = (state.decision==="reject");
   const needDisagree = (state.mode==="spotcheck" && state.item && state.decision!==state.item.vaDecision);
   let needQuota = false;
-  if (state.mode==="review"){
+  // 2026-09-01: Begruendungs-Quote gilt nur fuer VA-Rollen. Serverseitig war das mit v12 schon
+  // korrigiert, die Client-Pruefung blockte aber vorher und kannte die Rolle nicht.
+  if (state.mode==="review" && state.role !== "admin"){
     const describedAfter = state.described + (just?1:0);
     needQuota = state.done >= 1 && (describedAfter/(state.done+1)) < (CONFIG.QUOTA_PCT/100);
   }

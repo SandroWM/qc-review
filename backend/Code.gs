@@ -40,6 +40,8 @@ const CONFIG = {
   USERS_TAB:    "qc-users",
   SKRIPT_SSID:  "1XBtaGaVyhHJPMj6kxXOntNFmbGcGI00hCgvw5OBiR2o",  // sheet-32-marketingtabelle (Skript-Text-Aufloesung)
   SKRIPT_TAB:   "Daten",
+  SPEC_SSID:    "1L5OTBvXCd7Oc1PL5TuGOV7ISlUTl09T0_4c5wRNHUqM",  // sheet-71-aussehens-spec (Aussehens-Spec-Aufloesung, 2026-08-31)
+  SPEC_TAB:     "Daten",
   DRIVE_FOLDER_ID: "",         // optional: Wurzel der Creator-Bilder (fuer Referenz-/Asset-URLs) — nach Drive-Bildentscheidung fuellen
   QUOTA_PCT: 30,               // qc-begruendung-quote-prozent (Default; live aus sheet-48)
   // Stuecklohn je Content-Typ (W4/D24-kalibriert): Bild 0.04, Video/editiertes-Video 0.08.
@@ -365,7 +367,10 @@ function apiSubmit(body){
       return { ok:false, error:"Kein Zugriff auf diesen Aufgaben-Typ." };
 
     // W2-Fix: 30%-Begruendungs-Quote SERVERSEITIG erzwingen (aus sheet-60 gerechnet, nicht Client-State).
-    if (body.decision === "approve" && !just){
+    // 2026-08-31: gilt nur fuer VA-Rollen. Die Quote ist ein Stichproben-Instrument gegen
+    // Durchklicken bezahlter VA-Reviews - Sandro/Admin ist der Auftraggeber der Pruefung,
+    // nicht ihr Gegenstand, und begruendet ohnehin dort wo es noetig ist (Sandro-Entscheidung).
+    if (body.decision === "approve" && !just && (!p || p.r !== "admin")){
       const mine = myToday_(t, me);
       const doneAfter = mine.done + 1;
       const describedAfter = mine.described;
@@ -474,8 +479,10 @@ function statsFor_(t, p, mode, fresh){
   const me = p.v || p.u;
   const m = myToday_(t, me);
   const earn = m.rows.reduce((s,r)=> s + (CONFIG.RATE[r["Content-Typ"]]||0.025), 0);
+  // Admin/Sandro unterliegt der Begruendungs-Quote nicht -> kein Soll, keine Quoten-Anzeige.
+  const needed = (p && p.r === "admin") ? 0 : Math.ceil(m.done*CONFIG.QUOTA_PCT/100);
   return { done:m.done, agreementPct:null, describedToday:m.described,
-           neededToday: Math.ceil(m.done*CONFIG.QUOTA_PCT/100), earningsToday: Math.round(earn*1000)/1000 };
+           neededToday: needed, earningsToday: Math.round(earn*1000)/1000 };
 }
 function creatorName_(creatorId){
   return creatorId || "";  // optional: Join auf sheet-01-persona-stack fuer Klarnamen
@@ -501,11 +508,25 @@ function assetFor_(row, isGolden){
   const typ = String(row["Content-Typ"]||"");
   const ref = String((isGolden ? row["Source-Item-Ref"] : row["Asset-Ref"]) || "");
   if (typ === "Skript") return { kind:"text", text: resolveSkript_(ref) };
+  // Aussehens-Spec-FK VOR dem generischen Plan-Zweig pruefen: Spec-Items laufen seit sop-01-05 V10
+  // als Content-Typ=Plan, sollen aber den vollen Spec-Text zeigen, nicht nur den Quell-Verweis.
+  if (/^(sheet-71[:\/])?spec-\d{8}-\d{3}$/.test(ref.trim())) return { kind:"text", text: resolveSpec_(ref) };
   if (typ === "Plan" || typ === "Konzept"){
     // Plan/Konzept: Sheet-Zeilen-FK -> als Text-Verweis anzeigen (Reviewer oeffnet die Quelle)
     if (!/^https?:\/\//.test(ref)) return { kind:"text", text: "Konzept-/Plan-Item — Quelle: " + ref };
   }
+  // Fallback: Ref ist weder URL noch Drive-Datei-ID -> als Text rendern statt <img> mit kaputter src.
+  // Trifft die Spec-Vorschlaege aus sop-01-05: dort liegt die komplette Aussehens-Spec als Volltext
+  // in Asset-Ref (Content-Typ=Bild), aber ein Bild existiert noch gar nicht -- die Freigabe genau
+  // dieser Spec ist ja die Voraussetzung fuer die Bild-Generierung. Ohne diesen Zweig zeigte die App
+  // "Asset konnte nicht geladen werden -- Link pruefen" und das Item war nicht reviewbar.
+  if (!isImageRef_(ref)) return { kind:"text", text: ref || "(kein Asset hinterlegt)" };
   return { kind:"image", url: assetUrl_(ref) };
+}
+// Bild-tauglicher Ref? Gleiche zwei Tests wie assetUrl_ -- bewusst deckungsgleich halten.
+function isImageRef_(ref){
+  ref = String(ref||"").trim();
+  return /^https?:\/\//.test(ref) || /^[A-Za-z0-9_-]{20,}$/.test(ref);
 }
 function resolveSkript_(ref){
   // Asset-Ref-Konvention: "sheet-32:<Reel-ID>" -> skript_text aus sheet-32-marketingtabelle
@@ -519,6 +540,24 @@ function resolveSkript_(ref){
     } catch(e){ /* faellt auf Ref-Anzeige zurueck */ }
   }
   return "Skript-Item — Quelle: " + ref;
+}
+function resolveSpec_(ref){
+  // Asset-Ref-Konvention: "spec-YYYYMMDD-NNN" (optional mit "sheet-71:"-Praefix)
+  const id = String(ref).replace(/^sheet-71[:\/]/, "").trim();
+  try {
+    const t = table_(sheet_(CONFIG.SPEC_SSID, CONFIG.SPEC_TAB));
+    const row = t.rows.find(r => String(r["Spec-ID"]).trim() === id);
+    if (row){
+      const teile = [];
+      teile.push("Aussehens-Spec " + id + "  |  Creator " + (row["Creator-ID"]||"?")
+                 + "  |  Version " + (row["Spec-Version"]||"?") + "  (" + (row["Spec-Status"]||"?") + ")");
+      if (row["Nischen-Ref"]) teile.push("Nische: " + row["Nischen-Ref"]);
+      if (row["Entscheidungs-Block"]) teile.push("\n--- Begruendung des Laufs ---\n" + row["Entscheidungs-Block"]);
+      teile.push("\n--- Spec ---\n" + String(row["Spec-Volltext"]||"(leer)"));
+      return teile.join("\n");
+    }
+  } catch(e){ /* faellt auf Ref-Anzeige zurueck */ }
+  return "Aussehens-Spec-Item - Quelle: " + ref + " (in sheet-71-aussehens-spec nicht gefunden)";
 }
 function assetUrl_(ref){
   ref = String(ref||"");

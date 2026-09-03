@@ -335,6 +335,10 @@ function apiSubmit(body){
   // Reviewer entscheidet nur approve/reject. revision ist KEINE Reviewer-Option (sop-09-05 entscheidet).
   if (["approve","reject"].indexOf(body.decision) < 0) return { ok:false, error:"Ungültige Entscheidung." };
   const rating = clampRating_(body.rating);                               // W2-Fix: Rating validieren
+  // 2026-09-03 (sop-09-05 V9): VA-Rolle muss beim Approve ein Rating (1-5) setzen - Rating speist die
+  // VA-Kalibrierung. Admin/Sandro (Tier 0) ist davon ausgenommen, wie bei der Begruendungs-Quote.
+  if (body.decision === "approve" && (!p || p.r !== "admin") && !(rating >= 1))
+    return { ok:false, error:"Bitte ein Rating (1-5 Sterne) setzen.", rating:true };
   const just = String(body.begruendung||"").trim();
   if (body.decision==="reject" && !just) return { ok:false, error:"Begründung ist Pflicht bei Reject." };
 

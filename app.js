@@ -357,6 +357,10 @@ async function onNext(){
     const describedAfter = state.described + (just?1:0);
     needQuota = state.done >= 1 && (describedAfter/(state.done+1)) < (CONFIG.QUOTA_PCT/100);
   }
+  // 2026-09-03: VA-Rolle braucht beim Approve ein Rating (sop-09-05 V9); Admin nicht.
+  if (state.decision==="approve" && state.role !== "admin" && !(state.rating >= 1)){
+    $("review-hint").textContent = "Bitte ein Rating (1-5 Sterne) setzen."; return;
+  }
   if ((needReject || needDisagree || needQuota) && !just){
     $("review-hint").textContent = (needReject || needDisagree)
       ? "Begründung ist Pflicht (Reject bzw. Abweichung)."

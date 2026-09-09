@@ -16,11 +16,18 @@ Setup jetzt: `setup('EinmalAdminPasswort')` — kein Passwort mehr im Code.
 - **Screening** (Bewerber) — Golden-Set-Test (`sheet-64-qc-golden-set`), Auto-Scoring → `sheet-63` (`sop-09-07`).
 - **Check-in** (Sandro, `ci.js`/`checkin.gs`, Direktlink `#checkin`) — Daily-Tracking des Minimaltag-Systems
   nach `os-data/checkins.json` im Drive; Tagesgrenze 04:00 Europe/Berlin (Nachtschicht), Streak-Regel
-  „nie 2 rote Tage in Folge", 14-Tage-Kacheln, Nachtrag ≤ 7 Tage. **Der Tages-Status wird abgeleitet,
-  nicht abgefragt:** Kernblock (3 h Business) erledigt = Grün; sonst eine Rückfrage „war das geplant?"
-  → Joker/Rot (serverseitiger Konsistenz-Guard; ein Eintrag pro Tag, Speichern ersetzt ihn komplett —
-  die Karte zeigt „Gespeichert: Grün · 19:51 Uhr"). Musik und Sport sind reine Statistik-Felder und
-  brechen die Streak nie. Grün = 2 Taps (Kernblock-Ja → Speichern), Joker-Schnellknopf = 1 Tap.
+  „nie 2 rote Tage in Folge", Nachtrag ≤ 7 Tage. **Business wird in Stunden erfasst** (7 Pills 0–6 + Feld
+  für krumme Werte, Viertelstunden); **der Tages-Status wird abgeleitet, nicht abgefragt:** ab 3 h =
+  Kernblock = Grün, darunter eine Rückfrage „war das geplant?" → Joker/Rot (serverseitige Guards
+  Stunden↔Kernblock↔Status; ein Eintrag pro Tag, Speichern ersetzt ihn komplett — die Karte zeigt
+  „Gespeichert: Grün · 4 h · 19:51 Uhr"). Musik und Sport sind reine Statistik-Felder und brechen die
+  Streak nie. Joker-Schnellknopf = 1 Tap. **7-Tage-Matrix** (seit 10.09.2026): Business (Stunden; ab 3 h
+  grün, Joker orange, sonst rot), Musik und Sport (✓/–, grau = laut Kalender nicht geplant) mit den Tagen
+  nebeneinander, dazu je Zeile eine **30-Tage-Quote** „erledigt / eingetragene Soll-Tage" (Business
+  zusätzlich Ø h). **Soll = Kalender-Struktur:** Business Mo–Fr + So (Samstag Off-Day), Musik und HH+Sport
+  täglich; Joker-Tage reduzieren das Soll; Tages-Ausnahmen (z. B. Musik an Spätschicht-Tagen gelöscht)
+  kommen aus `os-data/checkin-soll.json` (gepflegt vom Scheduled Task `kalender-schichtregeln`, von
+  `ci_get` mitgeliefert; fehlt die Datei, gelten die Standardregeln aus `ci.js`).
   **Der Schreibweg ist PC-unabhängig** (Pages → Apps Script → Drive; der lokale Rechner ist nur
   nachlaufender Sync-Spiegel). Admin-Sessions überleben 30 Tage und werden im localStorage gemerkt
   (Handy-Reminder ohne Neu-Login); VA-Tokens bleiben bei 12 h.
@@ -89,8 +96,8 @@ Alle Calls: `POST <BACKEND_URL>` mit JSON-Body, Antwort `{ ok: bool, ... }`.
 | `login` | `{action, username, password}` | `{ok, token, role, name, vaId}` |
 | `next` | `{action, token, mode}` | `{ok, item, reference, stats}` · `item:null` = Queue leer |
 | `submit` | `{action, token, mode, itemId, decision, rating, begruendung}` | `{ok, stats}` |
-| `ci_get` | `{action, token}` (admin) | `{ok, days:{"YYYY-MM-DD":{status,kernblock,musik,sport,notiz,gespeichert}}, heute}` |
-| `ci_save` | `{action, token, datum, status, kernblock, musik, sport, notiz}` (admin) | `{ok, days, heute}` · idempotent pro Datum, Fenster heute−7 T, Guard status↔kernblock |
+| `ci_get` | `{action, token}` (admin) | `{ok, days:{"YYYY-MM-DD":{status,kernblock,stunden?,musik,sport,notiz,gespeichert}}, heute, soll}` · `soll` = Inhalt von `checkin-soll.json` oder `null` |
+| `ci_save` | `{action, token, datum, stunden, status, kernblock, musik, sport, notiz}` (admin) | `{ok, days, heute, soll}` · idempotent pro Datum, Fenster heute−7 T, Guards stunden↔kernblock (ab 3 h) und status↔kernblock; `stunden` Viertelstunden 0–24, optional (Alt-Client ohne Stunden → kernblock wie gesendet) |
 
 - `mode`: `review` \| `spotcheck` \| `screening`. `decision`: **`approve` \| `reject`** (keine `revision`-Option für den Reviewer).
 - `item`: `{itemId, contentTyp, sourceSop, creatorId, creatorName, assetUrl, vaDecision?}` (`vaDecision` nur im Spot-Check).

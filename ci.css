@@ -47,13 +47,31 @@
 .ci-streak-zahl.leer{color:var(--text-3)}
 .ci-streak-lbl{font-size:14px;color:var(--text-2)}
 
-.ci-kacheln{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-top:4px}
-.ci-kachel{min-height:42px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface-2);display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
-.ci-kachel:disabled{cursor:default;opacity:.8}
-.ci-kachel-tag{font-size:11px;font-weight:600}
-.k-gruen{background:var(--green-bg);border-color:var(--green);color:var(--green)}
-.k-joker{background:var(--amber-bg);border-color:var(--amber);color:var(--amber)}
-.k-rot{background:var(--red-bg);border-color:var(--red);color:var(--red)}
-.k-leer{color:var(--text-3);border-style:dashed}
-.k-heute .ci-kachel-tag{text-decoration:underline;text-underline-offset:3px}
-.k-akt{outline:2px solid var(--info);outline-offset:1px}
+/* Stunden-Eingabe (seit 10.09.2026): 7 Schnell-Pills 0–6 in einer Reihe + Feld fuer krumme Werte */
+.ci-pills-h{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.ci-pills-h .ci-pill{min-height:44px;font-size:15px;padding:0}
+.ci-exakt-row{display:flex;align-items:center;gap:8px}
+.ci-exakt{width:110px;height:38px;padding:0 10px;background:var(--surface);border:1px solid var(--border-2);border-radius:var(--radius-sm);font-size:14px}
+.ci-exakt:focus{outline:2px solid var(--info);outline-offset:1px}
+.ci-exakt.bad{border-color:var(--red)}
+
+/* 7-Tage-Matrix (seit 10.09.2026): Kopfzeile (Wochentag + Datum) + je Item eine Caption-Zeile mit
+   30-T-Quote und darunter 7 Kacheln — Tage stehen ueber alle Zeilen hinweg buendig untereinander.
+   Caption statt Label-Spalte, damit die Kacheln am Handy (~40 px) tippbar bleiben. */
+.ci-untertitel{font-weight:600;font-size:14px;margin-top:4px}
+.ci-matrix{display:flex;flex-direction:column;gap:4px}
+.ci-mrow{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.ci-mcap{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-top:6px;font-size:12.5px}
+.ci-mcap strong{font-weight:600}
+.ci-mstat{font-size:11.5px;color:var(--text-3);font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+.ci-z{min-height:38px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface-2);display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--text-2)}
+.ci-zh{flex-direction:column;gap:1px;background:transparent;border-color:transparent;min-height:34px}
+.ci-zh-wt{font-size:11px;font-weight:600}
+.ci-zh-dt{font-size:10px;font-weight:500;color:var(--text-3)}
+.z-gruen{background:var(--green-bg);border-color:var(--green);color:var(--green)}
+.z-joker{background:var(--amber-bg);border-color:var(--amber);color:var(--amber)}
+.z-rot{background:var(--red-bg);border-color:var(--red);color:var(--red)}
+.z-leer{border-style:dashed;color:var(--text-3)}
+.z-frei,.z-na{color:var(--text-3)}
+.z-heute .ci-zh-wt{text-decoration:underline;text-underline-offset:3px}
+.z-akt{outline:2px solid var(--info);outline-offset:1px}

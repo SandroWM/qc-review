@@ -16,9 +16,11 @@ Setup jetzt: `setup('EinmalAdminPasswort')` — kein Passwort mehr im Code.
 - **Screening** (Bewerber) — Golden-Set-Test (`sheet-64-qc-golden-set`), Auto-Scoring → `sheet-63` (`sop-09-07`).
 - **Tablet** (Sandro, `ci.js`/`tbMount`, Direktlink `#tablet`, seit 13.09.2026) — Vollbild-Dashboard fürs
   Tablet: Streak + 7-Tage-Matrix + 30-T-Quoten groß, daneben eine eigene Agenda-Kachel aus dem Backend
-  (`ci_agenda`: Termine heute + morgen mit Dauer und Termin-Farbe aus CalendarApp, fällige/überfällige Google
-  Tasks per Advanced Service; Scopes calendar.readonly + tasks.readonly; Fallback bei Fehler = Google-Embed;
-  abschaltbar, Zustand im localStorage), Auto-Refresh alle 10 min + beim Sichtbarwerden, Bildschirm-Wachhalten per Screen Wake Lock
+  (`ci_agenda`: fällige/überfällige Google Tasks oben, darunter Termine heute + morgen mit Dauer und Farbe —
+  Farbquelle wie in der Google-Oberfläche: **Label** (`eventLabelId` → `Calendars.get().labelProperties`) >
+  `colorId` > Kalenderfarbe (alte → heutige Palette); Advanced Services Calendar v3 + Tasks v1, Scopes
+  calendar.readonly + tasks.readonly; Fallback CalendarApp bzw. Google-Embed; abschaltbar, Zustand im
+  localStorage). Check-in-Teil rendert sofort, die Agenda lädt nach. Auto-Refresh alle 10 min + beim Sichtbarwerden, Bildschirm-Wachhalten per Screen Wake Lock
   (Chrome Android), Knopf „Check-in eintragen" wechselt in die Eingabe. Topbar ist ausgeblendet (`body.tablet-mode`),
   „Menü" blendet sie wieder ein. Reine Anzeige — Kacheln sind dort nicht antippbar.
 - **Check-in** (Sandro, `ci.js`/`checkin.gs`, Direktlink `#checkin`) — Daily-Tracking des Minimaltag-Systems

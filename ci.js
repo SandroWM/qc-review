@@ -400,9 +400,11 @@ function ciZelle(item, d, interaktiv){
   if (e && item === "business"){
     const hasH = typeof e.stunden === "number";
     const hTxt = hasH ? ciH(e.stunden) + " h" : null;
+    // Sandro 13.09.: immer die echte Stundenzahl zeigen, kein "<3"/"3+" — die Farbe sagt schon,
+    // ob der Kernblock stand. Fehlt die Zahl (Eintrag vor dem Backend-Update), steht "?".
     if (e.status === "joker"){ kl = "z-joker"; text = (hasH && e.stunden > 0) ? ciH(e.stunden) : "J"; tip = "Joker" + (hTxt ? " · " + hTxt : ""); }
-    else if (e.status === "gruen"){ kl = "z-gruen"; text = hasH ? ciH(e.stunden) : "3+"; tip = "Grün · " + (hTxt || "Kernblock"); }
-    else { kl = "z-rot"; text = hasH ? ciH(e.stunden) : "<3"; tip = "Rot · " + (hTxt || "kein Kernblock"); }
+    else if (e.status === "gruen"){ kl = "z-gruen"; text = hasH ? ciH(e.stunden) : "?"; tip = "Grün · " + (hTxt || "Stunden nicht erfasst (Eintrag vor dem Update) — per Kachel-Tap nachtragen"); }
+    else { kl = "z-rot"; text = hasH ? ciH(e.stunden) : "?"; tip = "Rot · " + (hTxt || "Stunden nicht erfasst (Eintrag vor dem Update) — per Kachel-Tap nachtragen"); }
   } else if (e){
     const erl = ciErledigt(item, e);
     if (erl === null){ kl = "z-na"; text = "?"; tip = "keine Angabe"; }

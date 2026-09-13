@@ -129,18 +129,22 @@ function ciStatText(item, s){
 }
 
 /* ---------- Laden + Rendern ---------- */
+// Gemeinsamer Loader fuer Check-in-Karte und Tablet-Dashboard: fuellt ci.days/soll/heute/datum.
+async function ciLaden_(){
+  const r = await api("ci_get", { token: state.token });
+  if (!r || !r.ok) throw new Error((r && r.error) || "ci_get fehlgeschlagen");
+  ci.days = r.days || {};
+  ci.soll = (r.soll && typeof r.soll === "object") ? r.soll : null;
+  ci.heute = r.heute || ciEffHeuteLokal_();
+  ci.datum = ci.heute;
+  ci.feedback = "";
+}
 async function ciMount(){
   const v = $("ci-view");
   dzClear(v);
   v.appendChild(dzEl("div", "dz-loading", "Lade Check-in …"));
   try {
-    const r = await api("ci_get", { token: state.token });
-    if (!r || !r.ok) throw new Error((r && r.error) || "ci_get fehlgeschlagen");
-    ci.days = r.days || {};
-    ci.soll = (r.soll && typeof r.soll === "object") ? r.soll : null;
-    ci.heute = r.heute || ciEffHeuteLokal_();
-    ci.datum = ci.heute;
-    ci.feedback = "";
+    await ciLaden_();
     ciRender();
   } catch (err){
     dzClear(v);
@@ -358,18 +362,21 @@ function ciRender(){
 }
 
 /* ---------- 7-Tage-Matrix: Kopfzeile (Wochentag + Datum) + je Item eine Zeile ---------- */
-function ciMatrix(stats){
+// interaktiv=false (Tablet-Dashboard): reine Anzeige, Kacheln nicht antippbar, keine Auswahl-Markierung.
+function ciMatrix(stats, interaktiv){
+  if (interaktiv === undefined) interaktiv = true;
   const box = dzEl("div", "ci-matrix");
   const tage = [];
   for (let i = CI_TAGE_MATRIX - 1; i >= 0; i--) tage.push(ciShift(ci.heute, -i));
   const head = dzEl("div", "ci-mrow ci-mhead");
   tage.forEach(d => {
-    const h = dzEl("button", "ci-z ci-zh" + (d === ci.heute ? " z-heute" : "") + (d === ci.datum ? " z-akt" : ""));
+    const h = dzEl("button", "ci-z ci-zh" + (d === ci.heute ? " z-heute" : "") + (interaktiv && d === ci.datum ? " z-akt" : ""));
     h.type = "button";
     h.appendChild(dzEl("span", "ci-zh-wt", ciWtag(d)));
     h.appendChild(dzEl("span", "ci-zh-dt", d.slice(8,10) + "."));
     h.title = ciSchoen(d) + (ci.days[d] ? "" : " · kein Eintrag");
-    h.onclick = () => { ci.datum = d; ci.feedback = ""; ciRender(); };
+    if (interaktiv) h.onclick = () => { ci.datum = d; ci.feedback = ""; ciRender(); };
+    else h.tabIndex = -1;
     head.appendChild(h);
   });
   box.appendChild(head);
@@ -379,13 +386,14 @@ function ciMatrix(stats){
     cap.appendChild(dzEl("span", "ci-mstat", ciStatText(item.key, stats[item.key])));
     box.appendChild(cap);
     const row = dzEl("div", "ci-mrow");
-    tage.forEach(d => row.appendChild(ciZelle(item.key, d)));
+    tage.forEach(d => row.appendChild(ciZelle(item.key, d, interaktiv)));
     box.appendChild(row);
   });
   return box;
 }
 
-function ciZelle(item, d){
+function ciZelle(item, d, interaktiv){
+  if (interaktiv === undefined) interaktiv = true;
   const e = ci.days[d] || null;
   const soll = ciSollTag(item, d, e);
   let text = "", kl = "z-leer", tip = "kein Eintrag";
@@ -402,9 +410,148 @@ function ciZelle(item, d){
     else if (soll){ kl = "z-rot"; text = "–"; tip = "nicht gemacht"; }
     else { kl = "z-frei"; text = "–"; tip = "nicht gemacht (laut Kalender nicht geplant)"; }
   }
-  const k = dzEl("button", "ci-z " + kl + (d === ci.heute ? " z-heute" : "") + (d === ci.datum ? " z-akt" : ""), text);
+  const k = dzEl("button", "ci-z " + kl + (d === ci.heute ? " z-heute" : "") + (interaktiv && d === ci.datum ? " z-akt" : ""), text);
   k.type = "button";
   k.title = ciSchoen(d) + " · " + tip + (e && e.notiz ? " · " + e.notiz.slice(0, 80) : "");
-  k.onclick = () => { ci.datum = d; ci.feedback = ""; ciRender(); };
+  if (interaktiv) k.onclick = () => { ci.datum = d; ci.feedback = ""; ciRender(); };
+  else k.tabIndex = -1;
   return k;
+}
+
+/* =================================================================== */
+/*  TABLET-DASHBOARD (Sandro-Wunsch 13.09.2026): Streak + 7-Tage-Matrix   */
+/*  + 30-T-Quoten in Tablet-Groesse, Google-Kalender daneben (Embed,     */
+/*  abschaltbar), Auto-Refresh alle 10 min + beim Sichtbarwerden,        */
+/*  Bildschirm-Wachhalten per Screen Wake Lock (Chrome Android, HTTPS).  */
+/*  Direktlink: …/#tablet — die 30-Tage-Sitzung greift wie am Handy.     */
+/* =================================================================== */
+const TB_REFRESH_MS = 10 * 60 * 1000;
+const TB_KAL_URL = "https://calendar.google.com/calendar/embed?src=sandro%40wuensche-management.com" +
+  "&ctz=Europe%2FBerlin&mode=AGENDA&hl=de&showTitle=0&showNav=0&showDate=0&showPrint=0&showTabs=0&showCalendars=0&showTz=0";
+const tb = { timer:null, uhrTimer:null, wakeLock:null, hooked:false };
+
+function tbKalAn(){ try { return localStorage.getItem("qc_tb_kal") !== "0"; } catch(e){ return true; } }
+function tbKalSetzen(an){ try { localStorage.setItem("qc_tb_kal", an ? "1" : "0"); } catch(e){} }
+function tbJetzt(opts){
+  try { return new Intl.DateTimeFormat("de-DE", Object.assign({ timeZone:"Europe/Berlin" }, opts)).format(new Date()); }
+  catch(e){ return ""; }
+}
+async function tbWakeLock(){
+  // Best effort: haelt den Tablet-Bildschirm an, solange die Seite sichtbar ist. Ohne API/Recht: still weiter.
+  try {
+    if (!("wakeLock" in navigator) || document.visibilityState !== "visible") return;
+    if (tb.wakeLock && !tb.wakeLock.released) return;
+    tb.wakeLock = await navigator.wakeLock.request("screen");
+  } catch(e){ tb.wakeLock = null; }
+}
+function tbStop(){
+  if (tb.timer){ clearInterval(tb.timer); tb.timer = null; }
+  if (tb.uhrTimer){ clearInterval(tb.uhrTimer); tb.uhrTimer = null; }
+  if (tb.wakeLock){ try { tb.wakeLock.release(); } catch(e){} tb.wakeLock = null; }
+}
+async function tbMount(){
+  const v = $("tablet-view");
+  if (!v) return;
+  tbStop();
+  dzClear(v);
+  v.appendChild(dzEl("div", "dz-loading", "Lade Check-in …"));
+  try {
+    await ciLaden_();
+    tbRender();
+  } catch (err){
+    dzClear(v);
+    v.appendChild(dzEl("div", "dz-error", "Dashboard nicht ladbar: " + (err && err.message ? err.message : err)));
+    const retry = dzEl("button", "dz-btn", "Nochmal versuchen");
+    retry.onclick = tbMount;
+    v.appendChild(retry);
+  }
+  tb.timer = setInterval(async () => {
+    if (state.mode !== "tablet"){ tbStop(); return; }
+    try { await ciLaden_(); tbRender(); } catch(e){ /* alte Anzeige stehen lassen, naechster Tick versucht es wieder */ }
+  }, TB_REFRESH_MS);
+  tbWakeLock();
+  if (!tb.hooked){
+    tb.hooked = true;
+    document.addEventListener("visibilitychange", async () => {
+      if (state.mode !== "tablet" || document.visibilityState !== "visible") return;
+      tbWakeLock();
+      try { await ciLaden_(); tbRender(); } catch(e){}
+    });
+  }
+}
+window.tbMount = tbMount;
+
+function tbRender(){
+  const v = $("tablet-view");
+  if (!v) return;
+  dzClear(v);
+  if (tb.uhrTimer){ clearInterval(tb.uhrTimer); tb.uhrTimer = null; }
+
+  // Kopfzeile: Datum + Uhr (Kalenderdatum; die Matrix markiert den effektiven Check-in-Tag) + Knoepfe
+  const head = dzEl("div", "tb-head");
+  const dat = dzEl("div", "tb-datum");
+  dat.appendChild(dzEl("span", "tb-tag", tbJetzt({ weekday:"long", day:"numeric", month:"long" })));
+  const uhr = dzEl("span", "tb-uhr", tbJetzt({ hour:"2-digit", minute:"2-digit" }));
+  dat.appendChild(uhr);
+  head.appendChild(dat);
+  tb.uhrTimer = setInterval(() => { uhr.textContent = tbJetzt({ hour:"2-digit", minute:"2-digit" }); }, 30000);
+
+  const knoepfe = dzEl("div", "tb-knoepfe");
+  const wechsel = (modus) => {
+    const sel = $("mode-select"); if (sel) sel.value = modus;
+    state.mode = modus; state.typ = null; dzSwitchMode();
+  };
+  const bEintragen = dzEl("button", "primary tb-btn tb-btn-primary", "Check-in eintragen");
+  bEintragen.type = "button"; bEintragen.onclick = () => wechsel("checkin");
+  const bKal = dzEl("button", "dz-btn tb-btn", tbKalAn() ? "Kalender aus" : "Kalender an");
+  bKal.type = "button"; bKal.onclick = () => { tbKalSetzen(!tbKalAn()); tbRender(); };
+  const bRefresh = dzEl("button", "dz-btn tb-btn", "↻");
+  bRefresh.type = "button"; bRefresh.title = "Jetzt aktualisieren";
+  bRefresh.onclick = async () => { bRefresh.disabled = true; try { await ciLaden_(); tbRender(); } catch(e){ bRefresh.disabled = false; } };
+  const bMenu = dzEl("button", "dz-btn tb-btn", "Menü");
+  bMenu.type = "button"; bMenu.title = "Topbar mit Bereichswahl einblenden";
+  bMenu.onclick = () => { document.body.classList.toggle("tablet-mode"); };
+  [bEintragen, bKal, bRefresh, bMenu].forEach(b => knoepfe.appendChild(b));
+  head.appendChild(knoepfe);
+  v.appendChild(head);
+
+  const grid = dzEl("div", "tb-grid" + (tbKalAn() ? " mit-kal" : ""));
+
+  // Links: Streak + Matrix + Quoten (Anzeige-Modus, nicht antippbar)
+  const links = dzEl("div", "tb-card");
+  const n = ciStreak(ci.days, ci.heute);
+  const sbox = dzEl("div", "ci-streak tb-streak");
+  sbox.appendChild(dzEl("span", "ci-streak-zahl" + (n ? "" : " leer"), String(n)));
+  sbox.appendChild(dzEl("span", "ci-streak-lbl", (n === 1 ? "Tag" : "Tage") + " im System · nie 2 rote in Folge"));
+  links.appendChild(sbox);
+  const stats = {};
+  CI_ITEMS.forEach(it => { stats[it.key] = ciStat(it.key, CI_TAGE_QUOTE); });
+  links.appendChild(dzEl("div", "ci-untertitel tb-untertitel", "Letzte " + CI_TAGE_MATRIX + " Tage"));
+  links.appendChild(ciMatrix(stats, false));
+  const heuteE = ci.days[ci.heute];
+  links.appendChild(dzEl("div", "ci-mini tb-mini", heuteE
+    ? "Heute (" + ciSchoen(ci.heute) + ") eingetragen: " + (CI_STATUS_TEXT[heuteE.status] || heuteE.status).split(" — ")[0]
+      + (typeof heuteE.stunden === "number" ? " · " + ciH(heuteE.stunden) + " h" : "")
+    : "Heute (" + ciSchoen(ci.heute) + ") noch kein Eintrag — Tagesgrenze 04:00 Uhr."));
+  grid.appendChild(links);
+
+  // Rechts: Google-Kalender (Agenda ab heute). Privater Kalender -> Browser muss mit dem Konto angemeldet sein.
+  if (tbKalAn()){
+    const rechts = dzEl("div", "tb-card tb-kal");
+    const fr = document.createElement("iframe");
+    fr.className = "tb-kal-frame";
+    fr.src = TB_KAL_URL;
+    fr.title = "Google Kalender";
+    fr.setAttribute("loading", "lazy");
+    fr.setAttribute("referrerpolicy", "no-referrer-when-downgrade");
+    rechts.appendChild(fr);
+    rechts.appendChild(dzEl("div", "ci-mini tb-mini",
+      "Bleibt der Kalender leer: im Tablet-Browser mit sandro@wuensche-management.com anmelden oder Drittanbieter-Cookies für calendar.google.com erlauben — sonst die Kalender-App im Split-Screen daneben legen."));
+    grid.appendChild(rechts);
+  }
+  v.appendChild(grid);
+
+  v.appendChild(dzEl("div", "ci-mini tb-fuss",
+    "Stand " + tbJetzt({ hour:"2-digit", minute:"2-digit" }) + " Uhr · aktualisiert sich alle 10 Minuten und beim Aufwecken · Bildschirm bleibt an, solange diese Seite offen ist" +
+    (tb.wakeLock && !tb.wakeLock.released ? "" : " (Wachhalten nicht aktiv — Browser/Netzteil prüfen)") + "."));
 }

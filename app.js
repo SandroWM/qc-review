@@ -425,7 +425,7 @@ function showScreeningResult(stats){
 function modesForRole(role){
   // Entscheidungen + Cockpit + Check-in sind admin-only (Sandro) — VAs sehen nur ihre Review-Queue.
   // Reihenfolge = Sandro 2026-07-23: Cockpit ist Startansicht, dann Entscheidungen, Review, Spot-Check.
-  if (role==="admin") return [["cockpit","Cockpit"],["dz","Entscheidungen"],["checkin","Check-in"],["review","Review"],["spotcheck","Spot-Check"]];
+  if (role==="admin") return [["cockpit","Cockpit"],["dz","Entscheidungen"],["checkin","Check-in"],["tablet","Tablet"],["review","Review"],["spotcheck","Spot-Check"]];
   return [["review","Review"]];
 }
 function startApp(){
@@ -511,7 +511,7 @@ async function doLogin(e){
 /* ---------- Tastatur (A/R, 1-5 Sterne, Enter = weiter) ---------- */
 function onKey(e){
   if ($("app-view").hidden) return;
-  if (state.mode === "dz" || state.mode === "cockpit" || state.mode === "checkin") return;   // A/R/Enter nur im QC-Workspace
+  if (state.mode === "dz" || state.mode === "cockpit" || state.mode === "checkin" || state.mode === "tablet") return;   // A/R/Enter nur im QC-Workspace
   const tag = (e.target && e.target.tagName || "").toLowerCase();
   if (tag === "textarea" || tag === "input" || tag === "select") return;
   const k = e.key.toLowerCase();

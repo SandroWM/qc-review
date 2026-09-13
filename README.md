@@ -14,6 +14,11 @@ Setup jetzt: `setup('EinmalAdminPasswort')` — kein Passwort mehr im Code.
 - **Review** (Tier-0 Sandro / Tier-1 VAs) — Live-Queue `sheet-60-qc-queue` prüfen.
 - **Spot-Check** (Sandro / Lead-VA, Meta-QC) — Stichprobe der VA-Entscheidungen re-reviewen (`sop-09-06`).
 - **Screening** (Bewerber) — Golden-Set-Test (`sheet-64-qc-golden-set`), Auto-Scoring → `sheet-63` (`sop-09-07`).
+- **Tablet** (Sandro, `ci.js`/`tbMount`, Direktlink `#tablet`, seit 13.09.2026) — Vollbild-Dashboard fürs
+  Tablet: Streak + 7-Tage-Matrix + 30-T-Quoten groß, daneben Google-Kalender-Embed (abschaltbar, Zustand im
+  localStorage), Auto-Refresh alle 10 min + beim Sichtbarwerden, Bildschirm-Wachhalten per Screen Wake Lock
+  (Chrome Android), Knopf „Check-in eintragen" wechselt in die Eingabe. Topbar ist ausgeblendet (`body.tablet-mode`),
+  „Menü" blendet sie wieder ein. Reine Anzeige — Kacheln sind dort nicht antippbar.
 - **Check-in** (Sandro, `ci.js`/`checkin.gs`, Direktlink `#checkin`) — Daily-Tracking des Minimaltag-Systems
   nach `os-data/checkins.json` im Drive; Tagesgrenze 04:00 Europe/Berlin (Nachtschicht), Streak-Regel
   „nie 2 rote Tage in Folge", Nachtrag ≤ 7 Tage. **Business wird in Stunden erfasst** (7 Pills 0–6 + Feld

@@ -75,3 +75,33 @@
 .z-frei,.z-na{color:var(--text-3)}
 .z-heute .ci-zh-wt{text-decoration:underline;text-underline-offset:3px}
 .z-akt{outline:2px solid var(--info);outline-offset:1px}
+
+/* Tablet-Dashboard (seit 13.09.2026): Vollbild-Ansicht fuer ein Tablet im Querformat — Topbar weg,
+   grosse Schrift, Matrix links, Google-Kalender rechts; unter 900 px Breite alles untereinander. */
+body.tablet-mode > #app-view > header.topbar{display:none}
+.tb-wrap{max-width:1400px;margin:0 auto;padding:16px 20px 24px;display:flex;flex-direction:column;gap:14px;min-height:100vh}
+.tb-head{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.tb-datum{display:flex;align-items:baseline;gap:16px;flex-wrap:wrap}
+.tb-tag{font-size:26px;font-weight:600}
+.tb-uhr{font-size:26px;font-weight:500;color:var(--text-2);font-variant-numeric:tabular-nums}
+.tb-knoepfe{display:flex;gap:8px;flex-wrap:wrap}
+.tb-btn{min-height:46px;font-size:15px;padding:0 16px}
+.tb-btn-primary{width:auto}
+.tb-grid{display:grid;grid-template-columns:1fr;gap:14px;flex:1}
+@media (min-width:900px){ .tb-grid.mit-kal{grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr)} }
+.tb-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.tb-streak .ci-streak-zahl{font-size:64px}
+.tb-streak .ci-streak-lbl{font-size:18px}
+.tb-untertitel{font-size:17px}
+.tb-mini{font-size:14px}
+.tb-fuss{text-align:center}
+.tb-wrap .ci-mrow{gap:8px}
+.tb-wrap .ci-z{min-height:66px;font-size:24px;cursor:default;border-radius:12px}
+.tb-wrap .ci-zh{min-height:52px}
+.tb-wrap .ci-zh-wt{font-size:17px}
+.tb-wrap .ci-zh-dt{font-size:14px}
+.tb-wrap .ci-mcap{font-size:17px;margin-top:10px}
+.tb-wrap .ci-mstat{font-size:15px;color:var(--text-2)}
+.tb-kal{padding:8px}
+.tb-kal-frame{width:100%;flex:1;min-height:420px;border:0;border-radius:var(--radius-sm);background:#fff}
+@media (max-width:899px){ .tb-tag,.tb-uhr{font-size:21px} .tb-wrap .ci-z{min-height:54px;font-size:20px} }

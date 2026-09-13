@@ -544,8 +544,17 @@ function boot(){
     return;
   }
 
-  // Gemerkte Sitzung (z. B. Kalender-Link ~00:30 auf #checkin): direkt rein, ohne Passwort.
-  // Ist der Token abgelaufen, faengt der Sitzungs-Waechter in api() das ab -> Login.
-  if (!CONFIG.DEMO_MODE && restoreSession()) startApp();
+  // Gemerkte Sitzung (z. B. Kalender-Link ~00:30 auf #checkin, Tablet-Link #tablet): direkt rein, ohne
+  // Passwort. Ist der Token abgelaufen, faengt der Sitzungs-Waechter in api() das ab -> Login.
+  // WICHTIG: erst nach dem Laden ALLER Scripts starten. boot() laeuft synchron am Ende von app.js —
+  // dz.js (dzSwitchMode), os.js und ci.js sind da noch nicht geladen. Ein sofortiger startApp() brach
+  // in dzSwitchMode mit ReferenceError ab, die Ansichten wurden nie umgeschaltet und es blieb der
+  // HTML-Standardzustand stehen (Review-Workspace, leeres Menue) — Sandros Bug-Meldung 13.09.2026,
+  // dieselbe Erscheinung hatte er zuvor am PC. Beim Login per Formular ist laengst alles geladen.
+  if (!CONFIG.DEMO_MODE && restoreSession()){
+    const starten = () => { if (typeof dzSwitchMode === "function") startApp(); else clearSession(); };
+    if (document.readyState === "complete") starten();
+    else window.addEventListener("load", starten, { once:true });
+  }
 }
 boot();

@@ -128,58 +128,144 @@ function ciSave(body){
 
 // ======================= Agenda fuers Tablet-Dashboard (Kalender + Google Tasks, NUR lesen) =======================
 // Sandro 13.09.2026: der Google-Kalender-Embed zeigt weder Dauer noch Termin-Farben noch Tasks. Darum eine
-// eigene Kachel, gefuettert aus CalendarApp + Advanced Service "Tasks" (Scopes calendar.readonly +
-// tasks.readonly im Manifest). Nichts wird geschrieben. Zeitzone Europe/Berlin.
-var CI_EVENT_FARBEN = { "1":"#7986cb","2":"#33b679","3":"#8e24aa","4":"#e67c73","5":"#f6c026","6":"#f5511d",
-  "7":"#039be5","8":"#616161","9":"#3f51b5","10":"#0b8043","11":"#d60000",
-  PALE_BLUE:"#7986cb", PALE_GREEN:"#33b679", MAUVE:"#8e24aa", PALE_RED:"#e67c73", YELLOW:"#f6c026",
-  ORANGE:"#f5511d", CYAN:"#039be5", GRAY:"#616161", BLUE:"#3f51b5", GREEN:"#0b8043", RED:"#d60000" };
+// eigene Kachel. Termine ueber den Advanced Service "Calendar" (Rohdaten der Calendar API v3), Fallback
+// CalendarApp. Tasks ueber den Advanced Service "Tasks". Scopes calendar.readonly + tasks.readonly —
+// nichts wird geschrieben. Zeitzone Europe/Berlin.
+//
+// FARBEN — Befund 13.09.2026 abends (Web-UI gegen API-Rohdaten verglichen):
+//  1. Google-Kalender-LABELS: Termine tragen `eventLabelId`; Name + Farbe der Labels stehen NICHT am Termin,
+//     sondern in Calendars.get(calId).labelProperties.eventLabels[{id, backgroundColor, name?}] (heutige
+//     24er-Palette, z. B. Musik #ef6c00, M+P Urlaub #e4c441). Die UI faerbt nach dem Label — CalendarApp
+//     kennt Labels nicht (getColor() = ""), deshalb zeigte die erste Version dort die Kalenderfarbe.
+//  2. Klassische Termin-Farbe `colorId` 1–11 (bei gelabelten Terminen meist die naechstliegende alte Farbe).
+//  3. Ohne beides: Kalenderfarbe. Die API liefert dafuer die ALTE Palette ("#9fe1e7" = Peacock) —
+//     Umrechnung auf die heutige Darstellung per CI_KAL_ALT_NEU.
+var CI_EVENT_FARBEN = { "1":"#7986cb","2":"#33b679","3":"#8e24aa","4":"#e67c73","5":"#f6bf26","6":"#f4511e",
+  "7":"#039be5","8":"#616161","9":"#3f51b5","10":"#0b8043","11":"#d50000",
+  PALE_BLUE:"#7986cb", PALE_GREEN:"#33b679", MAUVE:"#8e24aa", PALE_RED:"#e67c73", YELLOW:"#f6bf26",
+  ORANGE:"#f4511e", CYAN:"#039be5", GRAY:"#616161", BLUE:"#3f51b5", GREEN:"#0b8043", RED:"#d50000" };
+var CI_KAL_ALT_NEU = { "#ac725e":"#795548", "#d06b64":"#e67c73", "#f83a22":"#d50000", "#fa573c":"#f4511e",
+  "#ff7537":"#ef6c00", "#ffad46":"#f09300", "#42d692":"#009688", "#16a765":"#0b8043", "#7bd148":"#7cb342",
+  "#b3dc6c":"#c0ca33", "#fbe983":"#e4c441", "#fad165":"#f6bf26", "#92e1c0":"#33b679", "#9fe1e7":"#039be5",
+  "#9fc6e7":"#4285f4", "#4986e7":"#3f51b5", "#9a9cff":"#7986cb", "#b99aff":"#b39ddb", "#c2c2c2":"#616161",
+  "#cabdbf":"#a79b8e", "#cca6ac":"#ad1457", "#f691b2":"#d81b60", "#cd74e6":"#8e24aa", "#a47ae2":"#9e69af" };
 var CI_AGENDA_TAGE = 2;   // heute + morgen
+
+function ciHex_(hex){ var h = String(hex || "").toLowerCase(); return /^#[0-9a-f]{6}$/.test(h) ? h : ""; }
+function ciKalFarbe_(hex){ var h = ciHex_(hex); return h ? (CI_KAL_ALT_NEU[h] || h) : ""; }
+function ciBerlinMitternacht_(isoDatum, tz){
+  // "YYYY-MM-DD" als 00:00 Europe/Berlin; Offset des Tages (Mittag UTC) — DST-Randfall irrelevant fuer Ganztags-Termine
+  var off = Utilities.formatDate(new Date(isoDatum + "T12:00:00Z"), tz, "XXX");
+  return new Date(isoDatum + "T00:00:00" + off);
+}
+// Termin in jedes beruehrte Fenster-Tagesraster eintragen (mehrtaegige/uebernachtende Termine)
+function ciEventVerteilen_(events, start, tz, basis){
+  for (var i = 0; i < CI_AGENDA_TAGE; i++){
+    var tagStart = start.getTime() + i * 86400000, tagEnde = tagStart + 86400000;
+    if (basis.sMs >= tagEnde || basis.eMs <= tagStart) continue;
+    events.push({
+      t: basis.t, tag: Utilities.formatDate(new Date(tagStart), tz, "yyyy-MM-dd"),
+      s: basis.allDay ? "" : Utilities.formatDate(new Date(basis.sMs), tz, "HH:mm"),
+      e: basis.allDay ? "" : Utilities.formatDate(new Date(basis.eMs), tz, "HH:mm"),
+      sMs: basis.sMs, eMs: basis.eMs, allDay: basis.allDay, farbe: basis.farbe, fq: basis.fq,
+      label: basis.label || "", kal: basis.kal
+    });
+  }
+}
+// Label-Definitionen eines Kalenders: { labelId: {farbe, name} }. 5 min Cache — Farben aendern sich selten,
+// eine Aenderung in Google ist spaetestens nach 5 Minuten auf dem Tablet.
+function ciLabels_(calId){
+  var c = cache_(), key = "ci_labels_" + Utilities.base64EncodeWebSafe(String(calId)).slice(0, 180);
+  var hit = c.get(key);
+  if (hit){ try { return JSON.parse(hit); } catch(e){} }
+  var map = {};
+  try {
+    var cal = Calendar.Calendars.get(calId);
+    var lp = (cal && cal.labelProperties && cal.labelProperties.eventLabels) || [];
+    lp.forEach(function(l){ if (l && l.id) map[l.id] = { farbe: ciHex_(l.backgroundColor), name: String(l.name || "") }; });
+  } catch(e){ /* Feiertags-/fremde Kalender haben keine Labels */ }
+  try { c.put(key, JSON.stringify(map), 300); } catch(e){}
+  return map;
+}
+
+// Weg 1: Calendar API v3 ueber den Advanced Service. Wirft, wenn der Dienst fehlt/abgeschaltet ist.
+function ciTermineApi_(start, ende, tz){
+  var events = [], warnungen = [];
+  var liste = Calendar.CalendarList.list({ maxResults: 250, showHidden: false }).items || [];
+  liste.forEach(function(k){
+    if (k.selected !== true || k.deleted) return;             // nur in der Google-Oberflaeche eingeblendete Kalender
+    var kalFarbe = ciKalFarbe_(k.backgroundColor);
+    var items = [];
+    try {
+      var token = null;
+      do {
+        var r = Calendar.Events.list(k.id, { timeMin: start.toISOString(), timeMax: ende.toISOString(),
+          singleEvents: true, orderBy: "startTime", maxResults: 250, pageToken: token || undefined });
+        items = items.concat(r.items || []);
+        token = r.nextPageToken;
+      } while (token && items.length < 500);
+    } catch(e){ warnungen.push(String(k.summary || k.id) + ": " + e); return; }
+    var labels = null;                                       // erst laden, wenn ein Termin ein Label traegt
+    items.forEach(function(ev){
+      if (ev.status === "cancelled" || ev.eventType === "workingLocation") return;
+      var allDay = !!(ev.start && ev.start.date);
+      var sMs = allDay ? ciBerlinMitternacht_(ev.start.date, tz).getTime() : new Date(ev.start.dateTime).getTime();
+      var eMs = allDay ? ciBerlinMitternacht_(ev.end.date, tz).getTime() : new Date(ev.end.dateTime).getTime();
+      var farbe = "", fq = "", labelName = "";
+      if (ev.eventLabelId){
+        if (!labels) labels = ciLabels_(k.id);
+        var lb = labels[ev.eventLabelId];
+        if (lb && lb.farbe){ farbe = lb.farbe; fq = "label"; labelName = lb.name; }
+      }
+      if (!farbe && ev.colorId && CI_EVENT_FARBEN[String(ev.colorId)]){ farbe = CI_EVENT_FARBEN[String(ev.colorId)]; fq = "colorId"; }
+      if (!farbe){ farbe = kalFarbe || "#039be5"; fq = "kalender"; }
+      ciEventVerteilen_(events, start, tz, { t: String(ev.summary || "(ohne Titel)"), sMs: sMs, eMs: eMs,
+        allDay: allDay, farbe: farbe, fq: fq, label: labelName, kal: String(k.summary || "") });
+    });
+  });
+  return { events: events, warnungen: warnungen };
+}
+
+// Weg 2 (Fallback): CalendarApp. Kennt keine Labels — gelabelte Termine bekommen dort nur colorId/Kalenderfarbe.
+function ciTermineCalendarApp_(start, ende, tz){
+  var events = [], warnungen = [];
+  CalendarApp.getAllCalendars().forEach(function(cal){
+    var ausgewaehlt = true;
+    try { ausgewaehlt = cal.isSelected(); } catch(e){}
+    if (!ausgewaehlt) return;
+    var kalFarbe = "", kalName = "";
+    try { kalFarbe = ciKalFarbe_(cal.getColor()); } catch(e){}
+    try { kalName = String(cal.getName() || ""); } catch(e){}
+    var liste = [];
+    try { liste = cal.getEvents(start, ende); } catch(e){ warnungen.push(kalName + ": " + e); return; }
+    liste.forEach(function(ev){
+      var f = "";
+      try { f = String(ev.getColor() || ""); } catch(e){}
+      var allDay = false;
+      try { allDay = ev.isAllDayEvent(); } catch(e){}
+      ciEventVerteilen_(events, start, tz, { t: String(ev.getTitle() || "(ohne Titel)"),
+        sMs: ev.getStartTime().getTime(), eMs: ev.getEndTime().getTime(), allDay: allDay,
+        farbe: CI_EVENT_FARBEN[f] || kalFarbe || "#039be5", fq: CI_EVENT_FARBEN[f] ? "colorId" : "kalender", kal: kalName });
+    });
+  });
+  return { events: events, warnungen: warnungen };
+}
 
 function ciAgendaDaten_(){
   var tz = "Europe/Berlin";
   var jetzt = new Date();
   var heute = Utilities.formatDate(jetzt, tz, "yyyy-MM-dd");
-  // Berlin-Mitternacht als Date: Datum + lokaler Offset (XXX = +02:00) -> ISO mit Offset
-  var start = new Date(Utilities.formatDate(jetzt, tz, "yyyy-MM-dd'T'00:00:00XXX"));
+  var start = ciBerlinMitternacht_(heute, tz);
   var ende = new Date(start.getTime() + CI_AGENDA_TAGE * 86400000);
-  var events = [], warnungen = [];
-  try {
-    CalendarApp.getAllCalendars().forEach(function(cal){
-      var ausgewaehlt = true;
-      try { ausgewaehlt = cal.isSelected(); } catch(e){}
-      if (!ausgewaehlt) return;
-      var kalFarbe = "";
-      try { kalFarbe = String(cal.getColor() || ""); } catch(e){}
-      var kalName = "";
-      try { kalName = String(cal.getName() || ""); } catch(e){}
-      var liste = [];
-      try { liste = cal.getEvents(start, ende); } catch(e){ warnungen.push(kalName + ": " + e); return; }
-      liste.forEach(function(ev){
-        var f = "";
-        try { f = String(ev.getColor() || ""); } catch(e){}
-        var farbe = CI_EVENT_FARBEN[f] || (f && f.charAt(0) === "#" ? f : "") || kalFarbe || "#7986cb";
-        var allDay = false;
-        try { allDay = ev.isAllDayEvent(); } catch(e){}
-        var s = ev.getStartTime(), e2 = ev.getEndTime();
-        // Mehrtaegige oder uebernachtende Termine an JEDEM Fenstertag zeigen, den sie beruehren
-        // (Selftest 13.09.: "M+P Urlaub" begann am 11.09. und haette sonst heute gefehlt).
-        for (var i = 0; i < CI_AGENDA_TAGE; i++){
-          var tagStart = start.getTime() + i * 86400000, tagEnde = tagStart + 86400000;
-          if (s.getTime() >= tagEnde || e2.getTime() <= tagStart) continue;
-          events.push({
-            t: String(ev.getTitle() || "(ohne Titel)"),
-            tag: Utilities.formatDate(new Date(tagStart), tz, "yyyy-MM-dd"),
-            s: allDay ? "" : Utilities.formatDate(s, tz, "HH:mm"),
-            e: allDay ? "" : Utilities.formatDate(e2, tz, "HH:mm"),
-            sMs: s.getTime(), eMs: e2.getTime(), allDay: allDay,
-            farbe: farbe, kal: kalName
-          });
-        }
-      });
-    });
-  } catch(e){ warnungen.push("Kalender: " + e); }
-  // Ganztaegige Termine dauern bis zum Folgetag 00:00 -> auf den Starttag beschraenkt anzeigen
+
+  var t, quelle = "calendar-api";
+  try { t = ciTermineApi_(start, ende, tz); }
+  catch(e){
+    quelle = "calendarapp (Calendar-API: " + String(e).slice(0, 120) + ")";
+    try { t = ciTermineCalendarApp_(start, ende, tz); }
+    catch(e2){ t = { events: [], warnungen: ["Kalender: " + e2] }; }
+  }
+  var events = t.events;
   events.sort(function(a, b){ return (a.tag < b.tag ? -1 : a.tag > b.tag ? 1 : 0) || ((b.allDay ? 1 : 0) - (a.allDay ? 1 : 0)) || (a.sMs - b.sMs); });
 
   var tasks = [], tasksFehler = "";
@@ -188,17 +274,17 @@ function ciAgendaDaten_(){
     var listen = (Tasks.Tasklists.list({ maxResults: 20 }).items) || [];
     listen.forEach(function(l){
       var r = Tasks.Tasks.list(l.id, { showCompleted: false, showHidden: false, maxResults: 100, dueMax: dueMax });
-      ((r && r.items) || []).forEach(function(t){
-        if (!t.due) return;                                   // undatierte Aufgaben nicht aufs Dashboard
-        tasks.push({ t: String(t.title || "(ohne Titel)"), due: String(t.due).slice(0, 10),
-                     liste: String(l.title || ""), notiz: String(t.notes || "").slice(0, 120) });
+      ((r && r.items) || []).forEach(function(tk){
+        if (!tk.due) return;                                   // undatierte Aufgaben nicht aufs Dashboard
+        tasks.push({ t: String(tk.title || "(ohne Titel)"), due: String(tk.due).slice(0, 10),
+                     liste: String(l.title || ""), notiz: String(tk.notes || "").slice(0, 120) });
       });
     });
     tasks.sort(function(a, b){ return a.due < b.due ? -1 : a.due > b.due ? 1 : 0; });
   } catch(e){ tasksFehler = String(e); }
 
-  return { heute: heute, stand: jetzt.toISOString(), events: events.slice(0, 60), tasks: tasks.slice(0, 30),
-           warnungen: warnungen, tasksFehler: tasksFehler };
+  return { heute: heute, stand: jetzt.toISOString(), quelle: quelle, events: events.slice(0, 60), tasks: tasks.slice(0, 30),
+           warnungen: t.warnungen, tasksFehler: tasksFehler };
 }
 
 function ciAgenda(body){
@@ -213,14 +299,14 @@ function ciAgenda(body){
   }
 }
 
-// Einmal im Script-Editor ausfuehren (Sandro): bewilligt die neuen Scopes (Kalender + Tasks, nur lesen)
-// und legt als Beleg os-data/ci-agenda-selftest.json ab. Erst danach wird die neue Version deployt —
-// so steht die Web-App fuer VAs nie ohne Berechtigung da.
+// Einmal im Script-Editor ausfuehren (Sandro): bewilligt die Scopes (Kalender + Tasks, nur lesen)
+// und legt als Beleg os-data/ci-agenda-selftest.json ab. Erst danach wird eine Version mit neuen
+// Scopes deployt — so steht die Web-App fuer VAs nie ohne Berechtigung da.
 function ciAuthorizeAgenda(){
   var d = ciAgendaDaten_();
   var ergebnis = { lauf: new Date().toISOString(), ok: !d.tasksFehler && !(d.warnungen && d.warnungen.length),
-                   termine: d.events.length, tasks: d.tasks.length, tasksFehler: d.tasksFehler, warnungen: d.warnungen,
-                   beispiel: d.events.slice(0, 3).map(function(e){ return e.tag + " " + (e.allDay ? "ganztaegig" : e.s + "-" + e.e) + " " + e.t; }) };
+                   quelle: d.quelle, termine: d.events.length, tasks: d.tasks.length, tasksFehler: d.tasksFehler, warnungen: d.warnungen,
+                   beispiel: d.events.slice(0, 3).map(function(e){ return e.tag + " " + (e.allDay ? "ganztaegig" : e.s + "-" + e.e) + " " + e.t + " " + e.farbe + " (" + e.fq + ")"; }) };
   var inhalt = JSON.stringify(ergebnis, null, 1);
   try {
     var folder = DriveApp.getFolderById(DZ_IDS.DZ_OSDATA_FOLDER_ID);

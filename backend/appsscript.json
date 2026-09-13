@@ -2,7 +2,16 @@
   "timeZone": "Europe/Berlin",
   "dependencies": {
     "enabledAdvancedServices": [
-      { "userSymbol": "Tasks", "version": "v1", "serviceId": "tasks" }
+      {
+        "userSymbol": "Tasks",
+        "version": "v1",
+        "serviceId": "tasks"
+      },
+      {
+        "userSymbol": "Calendar",
+        "version": "v3",
+        "serviceId": "calendar"
+      }
     ]
   },
   "exceptionLogging": "STACKDRIVER",

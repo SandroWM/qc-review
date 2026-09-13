@@ -466,9 +466,17 @@ async function tbMount(){
   tbStop();
   dzClear(v);
   v.appendChild(dzEl("div", "dz-loading", "Lade Check-in …"));
+  // Check-in-Stand sofort zeigen, Kalender nachladen: die Agenda braucht kalt bis ~15 s (Apps-Script-Start
+  // + Calendar API), der Check-in 1–2 s. Beim Nachladen bleibt die vorige Agenda stehen, bis die neue da ist.
+  const agendaNachladen = async () => {
+    if (!tbKalAn()) return;
+    await tbLadeAgenda_();
+    if (state.mode === "tablet") tbRender();
+  };
   try {
-    await Promise.all([ciLaden_(), tbKalAn() ? tbLadeAgenda_() : Promise.resolve()]);
+    await ciLaden_();
     tbRender();
+    agendaNachladen();
   } catch (err){
     dzClear(v);
     v.appendChild(dzEl("div", "dz-error", "Dashboard nicht ladbar: " + (err && err.message ? err.message : err)));
@@ -477,9 +485,11 @@ async function tbMount(){
     v.appendChild(retry);
   }
   const neuLaden = async () => {
-    await Promise.all([ciLaden_(), tbKalAn() ? tbLadeAgenda_() : Promise.resolve()]);
+    await ciLaden_();
     tbRender();
+    await agendaNachladen();
   };
+  tb.neuLaden = neuLaden;
   tb.timer = setInterval(async () => {
     if (state.mode !== "tablet"){ tbStop(); return; }
     try { await neuLaden(); } catch(e){ /* alte Anzeige stehen lassen, naechster Tick versucht es wieder */ }
@@ -519,12 +529,18 @@ function tbRender(){
   const bEintragen = dzEl("button", "primary tb-btn tb-btn-primary", "Check-in eintragen");
   bEintragen.type = "button"; bEintragen.onclick = () => wechsel("checkin");
   const bKal = dzEl("button", "dz-btn tb-btn", tbKalAn() ? "Kalender aus" : "Kalender an");
-  bKal.type = "button"; bKal.onclick = () => { tbKalSetzen(!tbKalAn()); tbRender(); };
+  bKal.type = "button";
+  bKal.onclick = async () => {
+    const an = !tbKalAn();
+    tbKalSetzen(an);
+    tbRender();
+    if (an && !(tb.agenda && tb.agenda.ok)){ await tbLadeAgenda_(); if (state.mode === "tablet") tbRender(); }
+  };
   const bRefresh = dzEl("button", "dz-btn tb-btn", "↻");
   bRefresh.type = "button"; bRefresh.title = "Jetzt aktualisieren";
   bRefresh.onclick = async () => {
     bRefresh.disabled = true;
-    try { await Promise.all([ciLaden_(), tbKalAn() ? tbLadeAgenda_() : Promise.resolve()]); tbRender(); }
+    try { if (tb.neuLaden) await tb.neuLaden(); else { await ciLaden_(); tbRender(); } }
     catch(e){ bRefresh.disabled = false; }
   };
   const bMenu = dzEl("button", "dz-btn tb-btn", "Menü");
@@ -558,6 +574,7 @@ function tbRender(){
   if (tbKalAn()){
     const rechts = dzEl("div", "tb-card tb-kal");
     if (tb.agenda && tb.agenda.ok) tbAgenda(rechts, tb.agenda);
+    else if (!tb.agenda) rechts.appendChild(dzEl("div", "dz-loading tb-mini", "Lade Kalender und Aufgaben …"));
     else {
       const fr = document.createElement("iframe");
       fr.className = "tb-kal-frame";
@@ -587,24 +604,8 @@ function tbAgenda(box, ag){
   const morgen = ciShift(heute, 1);
   const tage = [heute, morgen];
   const events = ag.events || [];
-  tage.forEach((tag, idx) => {
-    const liste = events.filter(e => e.tag === tag);
-    box.appendChild(dzEl("div", "tb-ag-tag", (idx === 0 ? "Heute · " : "Morgen · ") + ciSchoen(tag)));
-    if (!liste.length){ box.appendChild(dzEl("div", "ci-mini tb-mini", "keine Termine")); return; }
-    liste.forEach(e => {
-      const vorbei = !e.allDay && e.eMs <= jetzt;
-      const laeuft = !e.allDay && e.sMs <= jetzt && e.eMs > jetzt;
-      const row = dzEl("div", "tb-ag-row" + (vorbei ? " tb-ag-vorbei" : "") + (laeuft ? " tb-ag-jetzt" : ""));
-      const bar = dzEl("span", "tb-ag-bar");
-      bar.style.background = /^#[0-9a-fA-F]{6}$/.test(e.farbe || "") ? e.farbe : "#7986cb";
-      row.appendChild(bar);
-      row.appendChild(dzEl("span", "tb-ag-zeit", e.allDay ? "ganztägig" : e.s + "–" + e.e));
-      const titel = dzEl("span", "tb-ag-titel", e.t);
-      titel.title = e.kal ? e.kal : "";
-      row.appendChild(titel);
-      box.appendChild(row);
-    });
-  });
+
+  // Aufgaben zuerst (Sandro 13.09.: "ganz oben, nicht ganz unten") — überfällige vorn, rot.
   const tasks = ag.tasks || [];
   box.appendChild(dzEl("div", "tb-ag-tag", "Aufgaben" + (tasks.length ? " · " + tasks.length : "")));
   if (ag.tasksFehler) box.appendChild(dzEl("div", "ci-mini tb-mini", "Google Tasks nicht lesbar: " + ag.tasksFehler));
@@ -618,6 +619,25 @@ function tbAgenda(box, ag){
     titel.title = t.liste + (t.notiz ? " · " + t.notiz : "");
     row.appendChild(titel);
     box.appendChild(row);
+  });
+
+  tage.forEach((tag, idx) => {
+    const liste = events.filter(e => e.tag === tag);
+    box.appendChild(dzEl("div", "tb-ag-tag", (idx === 0 ? "Heute · " : "Morgen · ") + ciSchoen(tag)));
+    if (!liste.length){ box.appendChild(dzEl("div", "ci-mini tb-mini", "keine Termine")); return; }
+    liste.forEach(e => {
+      const vorbei = !e.allDay && e.eMs <= jetzt;
+      const laeuft = !e.allDay && e.sMs <= jetzt && e.eMs > jetzt;
+      const row = dzEl("div", "tb-ag-row" + (vorbei ? " tb-ag-vorbei" : "") + (laeuft ? " tb-ag-jetzt" : ""));
+      const bar = dzEl("span", "tb-ag-bar");
+      bar.style.background = /^#[0-9a-fA-F]{6}$/.test(e.farbe || "") ? e.farbe : "#7986cb";
+      row.appendChild(bar);
+      row.appendChild(dzEl("span", "tb-ag-zeit", e.allDay ? "ganztägig" : e.s + "–" + e.e));
+      const titel = dzEl("span", "tb-ag-titel", e.t);
+      titel.title = [e.label, e.kal].filter(Boolean).join(" · ");
+      row.appendChild(titel);
+      box.appendChild(row);
+    });
   });
   if (ag.warnungen && ag.warnungen.length)
     box.appendChild(dzEl("div", "ci-mini tb-mini", "Hinweis: " + ag.warnungen.join(" · ")));

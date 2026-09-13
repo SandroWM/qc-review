@@ -162,14 +162,20 @@ function ciAgendaDaten_(){
         var allDay = false;
         try { allDay = ev.isAllDayEvent(); } catch(e){}
         var s = ev.getStartTime(), e2 = ev.getEndTime();
-        events.push({
-          t: String(ev.getTitle() || "(ohne Titel)"),
-          tag: Utilities.formatDate(s, tz, "yyyy-MM-dd"),
-          s: allDay ? "" : Utilities.formatDate(s, tz, "HH:mm"),
-          e: allDay ? "" : Utilities.formatDate(e2, tz, "HH:mm"),
-          sMs: s.getTime(), eMs: e2.getTime(), allDay: allDay,
-          farbe: farbe, kal: kalName
-        });
+        // Mehrtaegige oder uebernachtende Termine an JEDEM Fenstertag zeigen, den sie beruehren
+        // (Selftest 13.09.: "M+P Urlaub" begann am 11.09. und haette sonst heute gefehlt).
+        for (var i = 0; i < CI_AGENDA_TAGE; i++){
+          var tagStart = start.getTime() + i * 86400000, tagEnde = tagStart + 86400000;
+          if (s.getTime() >= tagEnde || e2.getTime() <= tagStart) continue;
+          events.push({
+            t: String(ev.getTitle() || "(ohne Titel)"),
+            tag: Utilities.formatDate(new Date(tagStart), tz, "yyyy-MM-dd"),
+            s: allDay ? "" : Utilities.formatDate(s, tz, "HH:mm"),
+            e: allDay ? "" : Utilities.formatDate(e2, tz, "HH:mm"),
+            sMs: s.getTime(), eMs: e2.getTime(), allDay: allDay,
+            farbe: farbe, kal: kalName
+          });
+        }
       });
     });
   } catch(e){ warnungen.push("Kalender: " + e); }

@@ -125,3 +125,102 @@ function ciSave(body){
     return { ok:true, days: days, heute: heute, soll: ciSoll_(d.folder) };
   } finally { lock.releaseLock(); }
 }
+
+// ======================= Agenda fuers Tablet-Dashboard (Kalender + Google Tasks, NUR lesen) =======================
+// Sandro 13.09.2026: der Google-Kalender-Embed zeigt weder Dauer noch Termin-Farben noch Tasks. Darum eine
+// eigene Kachel, gefuettert aus CalendarApp + Advanced Service "Tasks" (Scopes calendar.readonly +
+// tasks.readonly im Manifest). Nichts wird geschrieben. Zeitzone Europe/Berlin.
+var CI_EVENT_FARBEN = { "1":"#7986cb","2":"#33b679","3":"#8e24aa","4":"#e67c73","5":"#f6c026","6":"#f5511d",
+  "7":"#039be5","8":"#616161","9":"#3f51b5","10":"#0b8043","11":"#d60000",
+  PALE_BLUE:"#7986cb", PALE_GREEN:"#33b679", MAUVE:"#8e24aa", PALE_RED:"#e67c73", YELLOW:"#f6c026",
+  ORANGE:"#f5511d", CYAN:"#039be5", GRAY:"#616161", BLUE:"#3f51b5", GREEN:"#0b8043", RED:"#d60000" };
+var CI_AGENDA_TAGE = 2;   // heute + morgen
+
+function ciAgendaDaten_(){
+  var tz = "Europe/Berlin";
+  var jetzt = new Date();
+  var heute = Utilities.formatDate(jetzt, tz, "yyyy-MM-dd");
+  // Berlin-Mitternacht als Date: Datum + lokaler Offset (XXX = +02:00) -> ISO mit Offset
+  var start = new Date(Utilities.formatDate(jetzt, tz, "yyyy-MM-dd'T'00:00:00XXX"));
+  var ende = new Date(start.getTime() + CI_AGENDA_TAGE * 86400000);
+  var events = [], warnungen = [];
+  try {
+    CalendarApp.getAllCalendars().forEach(function(cal){
+      var ausgewaehlt = true;
+      try { ausgewaehlt = cal.isSelected(); } catch(e){}
+      if (!ausgewaehlt) return;
+      var kalFarbe = "";
+      try { kalFarbe = String(cal.getColor() || ""); } catch(e){}
+      var kalName = "";
+      try { kalName = String(cal.getName() || ""); } catch(e){}
+      var liste = [];
+      try { liste = cal.getEvents(start, ende); } catch(e){ warnungen.push(kalName + ": " + e); return; }
+      liste.forEach(function(ev){
+        var f = "";
+        try { f = String(ev.getColor() || ""); } catch(e){}
+        var farbe = CI_EVENT_FARBEN[f] || (f && f.charAt(0) === "#" ? f : "") || kalFarbe || "#7986cb";
+        var allDay = false;
+        try { allDay = ev.isAllDayEvent(); } catch(e){}
+        var s = ev.getStartTime(), e2 = ev.getEndTime();
+        events.push({
+          t: String(ev.getTitle() || "(ohne Titel)"),
+          tag: Utilities.formatDate(s, tz, "yyyy-MM-dd"),
+          s: allDay ? "" : Utilities.formatDate(s, tz, "HH:mm"),
+          e: allDay ? "" : Utilities.formatDate(e2, tz, "HH:mm"),
+          sMs: s.getTime(), eMs: e2.getTime(), allDay: allDay,
+          farbe: farbe, kal: kalName
+        });
+      });
+    });
+  } catch(e){ warnungen.push("Kalender: " + e); }
+  // Ganztaegige Termine dauern bis zum Folgetag 00:00 -> auf den Starttag beschraenkt anzeigen
+  events.sort(function(a, b){ return (a.tag < b.tag ? -1 : a.tag > b.tag ? 1 : 0) || ((b.allDay ? 1 : 0) - (a.allDay ? 1 : 0)) || (a.sMs - b.sMs); });
+
+  var tasks = [], tasksFehler = "";
+  try {
+    var dueMax = new Date(ende.getTime()).toISOString();
+    var listen = (Tasks.Tasklists.list({ maxResults: 20 }).items) || [];
+    listen.forEach(function(l){
+      var r = Tasks.Tasks.list(l.id, { showCompleted: false, showHidden: false, maxResults: 100, dueMax: dueMax });
+      ((r && r.items) || []).forEach(function(t){
+        if (!t.due) return;                                   // undatierte Aufgaben nicht aufs Dashboard
+        tasks.push({ t: String(t.title || "(ohne Titel)"), due: String(t.due).slice(0, 10),
+                     liste: String(l.title || ""), notiz: String(t.notes || "").slice(0, 120) });
+      });
+    });
+    tasks.sort(function(a, b){ return a.due < b.due ? -1 : a.due > b.due ? 1 : 0; });
+  } catch(e){ tasksFehler = String(e); }
+
+  return { heute: heute, stand: jetzt.toISOString(), events: events.slice(0, 60), tasks: tasks.slice(0, 30),
+           warnungen: warnungen, tasksFehler: tasksFehler };
+}
+
+function ciAgenda(body){
+  var p = auth_(body.token);
+  if (p.r !== "admin") return { ok:false, error:"Nur Admin." };
+  try {
+    var d = ciAgendaDaten_();
+    d.ok = true;
+    return d;
+  } catch(e){
+    return { ok:false, error:"Agenda nicht lesbar: " + e };
+  }
+}
+
+// Einmal im Script-Editor ausfuehren (Sandro): bewilligt die neuen Scopes (Kalender + Tasks, nur lesen)
+// und legt als Beleg os-data/ci-agenda-selftest.json ab. Erst danach wird die neue Version deployt —
+// so steht die Web-App fuer VAs nie ohne Berechtigung da.
+function ciAuthorizeAgenda(){
+  var d = ciAgendaDaten_();
+  var ergebnis = { lauf: new Date().toISOString(), ok: !d.tasksFehler && !(d.warnungen && d.warnungen.length),
+                   termine: d.events.length, tasks: d.tasks.length, tasksFehler: d.tasksFehler, warnungen: d.warnungen,
+                   beispiel: d.events.slice(0, 3).map(function(e){ return e.tag + " " + (e.allDay ? "ganztaegig" : e.s + "-" + e.e) + " " + e.t; }) };
+  var inhalt = JSON.stringify(ergebnis, null, 1);
+  try {
+    var folder = DriveApp.getFolderById(DZ_IDS.DZ_OSDATA_FOLDER_ID);
+    var alt = dzFileInFolder_("CI_AGENDA_SELFTEST_ID", folder, "ci-agenda-selftest.json");
+    if (alt) alt.setContent(inhalt); else dzCreateInFolder_("CI_AGENDA_SELFTEST_ID", folder, "ci-agenda-selftest.json", inhalt);
+  } catch(e){ Logger.log("Ergebnisdatei nicht schreibbar: " + e); }
+  Logger.log(inhalt);
+  return ergebnis;
+}

@@ -99,6 +99,7 @@ function route(action, body){
   // Daily Check-in (checkin.gs) — admin-only.
   if (action === "ci_get")  return ciGet(body);
   if (action === "ci_save") return ciSave(body);
+  if (action === "ci_agenda") return ciAgenda(body);   // Tablet: Kalender + Tasks (read-only, checkin.gs)
   return { ok:false, error:"unknown action" };
 }
 

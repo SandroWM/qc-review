@@ -104,4 +104,17 @@ body.tablet-mode > #app-view > header.topbar{display:none}
 .tb-wrap .ci-mstat{font-size:15px;color:var(--text-2)}
 .tb-kal{padding:8px}
 .tb-kal-frame{width:100%;flex:1;min-height:420px;border:0;border-radius:var(--radius-sm);background:#fff}
+/* Eigene Agenda (seit 13.09.2026 abends): Farbbalken + Zeitraum + Titel je Termin, Tasks darunter */
+.tb-kal:has(.tb-ag-tag){padding:14px 16px;gap:4px;overflow-y:auto}
+.tb-ag-tag{font-weight:600;font-size:15px;color:var(--text-2);margin:8px 0 2px;letter-spacing:.02em}
+.tb-ag-tag:first-child{margin-top:0}
+.tb-ag-row{display:grid;grid-template-columns:6px 118px minmax(0,1fr);gap:10px;align-items:center;padding:5px 0;border-bottom:1px solid var(--border)}
+.tb-ag-bar{width:6px;height:26px;border-radius:3px}
+.tb-ag-zeit{font-size:15px;font-variant-numeric:tabular-nums;color:var(--text-2);white-space:nowrap}
+.tb-ag-titel{font-size:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tb-ag-vorbei{opacity:.45}
+.tb-ag-jetzt .tb-ag-titel{font-weight:600}
+.tb-ag-jetzt .tb-ag-zeit{color:var(--text);font-weight:600}
+.tb-task .tb-task-box{font-size:18px;line-height:1;color:var(--text-3);width:6px;margin-left:-4px}
+.tb-task-spaet .tb-ag-zeit{color:var(--red)}
 @media (max-width:899px){ .tb-tag,.tb-uhr{font-size:21px} .tb-wrap .ci-z{min-height:54px;font-size:20px} }

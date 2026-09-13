@@ -430,7 +430,16 @@ function ciZelle(item, d, interaktiv){
 const TB_REFRESH_MS = 10 * 60 * 1000;
 const TB_KAL_URL = "https://calendar.google.com/calendar/embed?src=sandro%40wuensche-management.com" +
   "&ctz=Europe%2FBerlin&mode=AGENDA&hl=de&showTitle=0&showNav=0&showDate=0&showPrint=0&showTabs=0&showCalendars=0&showTz=0";
-const tb = { timer:null, uhrTimer:null, wakeLock:null, hooked:false };
+const tb = { timer:null, uhrTimer:null, wakeLock:null, hooked:false, agenda:null };
+
+// Eigene Agenda (Kalender mit Dauer + Termin-Farben + Google Tasks) aus dem Backend (ci_agenda).
+// Schlaegt sie fehl (z. B. Kalender-Rechte noch nicht freigegeben), zeigt tbRender den Google-Embed.
+async function tbLadeAgenda_(){
+  try {
+    const r = await api("ci_agenda", { token: state.token });
+    tb.agenda = (r && r.ok) ? r : { ok:false, error:(r && r.error) || "ci_agenda fehlgeschlagen" };
+  } catch (e){ tb.agenda = { ok:false, error: String(e && e.message ? e.message : e) }; }
+}
 
 function tbKalAn(){ try { return localStorage.getItem("qc_tb_kal") !== "0"; } catch(e){ return true; } }
 function tbKalSetzen(an){ try { localStorage.setItem("qc_tb_kal", an ? "1" : "0"); } catch(e){} }
@@ -458,7 +467,7 @@ async function tbMount(){
   dzClear(v);
   v.appendChild(dzEl("div", "dz-loading", "Lade Check-in …"));
   try {
-    await ciLaden_();
+    await Promise.all([ciLaden_(), tbKalAn() ? tbLadeAgenda_() : Promise.resolve()]);
     tbRender();
   } catch (err){
     dzClear(v);
@@ -467,9 +476,13 @@ async function tbMount(){
     retry.onclick = tbMount;
     v.appendChild(retry);
   }
+  const neuLaden = async () => {
+    await Promise.all([ciLaden_(), tbKalAn() ? tbLadeAgenda_() : Promise.resolve()]);
+    tbRender();
+  };
   tb.timer = setInterval(async () => {
     if (state.mode !== "tablet"){ tbStop(); return; }
-    try { await ciLaden_(); tbRender(); } catch(e){ /* alte Anzeige stehen lassen, naechster Tick versucht es wieder */ }
+    try { await neuLaden(); } catch(e){ /* alte Anzeige stehen lassen, naechster Tick versucht es wieder */ }
   }, TB_REFRESH_MS);
   tbWakeLock();
   if (!tb.hooked){
@@ -477,7 +490,7 @@ async function tbMount(){
     document.addEventListener("visibilitychange", async () => {
       if (state.mode !== "tablet" || document.visibilityState !== "visible") return;
       tbWakeLock();
-      try { await ciLaden_(); tbRender(); } catch(e){}
+      try { await neuLaden(); } catch(e){}
     });
   }
 }
@@ -509,7 +522,11 @@ function tbRender(){
   bKal.type = "button"; bKal.onclick = () => { tbKalSetzen(!tbKalAn()); tbRender(); };
   const bRefresh = dzEl("button", "dz-btn tb-btn", "↻");
   bRefresh.type = "button"; bRefresh.title = "Jetzt aktualisieren";
-  bRefresh.onclick = async () => { bRefresh.disabled = true; try { await ciLaden_(); tbRender(); } catch(e){ bRefresh.disabled = false; } };
+  bRefresh.onclick = async () => {
+    bRefresh.disabled = true;
+    try { await Promise.all([ciLaden_(), tbKalAn() ? tbLadeAgenda_() : Promise.resolve()]); tbRender(); }
+    catch(e){ bRefresh.disabled = false; }
+  };
   const bMenu = dzEl("button", "dz-btn tb-btn", "Menü");
   bMenu.type = "button"; bMenu.title = "Topbar mit Bereichswahl einblenden";
   bMenu.onclick = () => { document.body.classList.toggle("tablet-mode"); };
@@ -537,18 +554,22 @@ function tbRender(){
     : "Heute (" + ciSchoen(ci.heute) + ") noch kein Eintrag — Tagesgrenze 04:00 Uhr."));
   grid.appendChild(links);
 
-  // Rechts: Google-Kalender (Agenda ab heute). Privater Kalender -> Browser muss mit dem Konto angemeldet sein.
+  // Rechts: eigene Agenda (Dauer, Termin-Farben, Tasks) aus dem Backend; Fallback = Google-Embed.
   if (tbKalAn()){
     const rechts = dzEl("div", "tb-card tb-kal");
-    const fr = document.createElement("iframe");
-    fr.className = "tb-kal-frame";
-    fr.src = TB_KAL_URL;
-    fr.title = "Google Kalender";
-    fr.setAttribute("loading", "lazy");
-    fr.setAttribute("referrerpolicy", "no-referrer-when-downgrade");
-    rechts.appendChild(fr);
-    rechts.appendChild(dzEl("div", "ci-mini tb-mini",
-      "Bleibt der Kalender leer: im Tablet-Browser mit sandro@wuensche-management.com anmelden oder Drittanbieter-Cookies für calendar.google.com erlauben — sonst die Kalender-App im Split-Screen daneben legen."));
+    if (tb.agenda && tb.agenda.ok) tbAgenda(rechts, tb.agenda);
+    else {
+      const fr = document.createElement("iframe");
+      fr.className = "tb-kal-frame";
+      fr.src = TB_KAL_URL;
+      fr.title = "Google Kalender";
+      fr.setAttribute("loading", "lazy");
+      fr.setAttribute("referrerpolicy", "no-referrer-when-downgrade");
+      rechts.appendChild(fr);
+      rechts.appendChild(dzEl("div", "ci-mini tb-mini",
+        "Kalender-Daten nicht aus dem Backend ladbar" + (tb.agenda && tb.agenda.error ? " (" + tb.agenda.error + ")" : "") +
+        " — Ersatzansicht per Google-Embed. Bleibt sie leer: im Tablet-Browser mit sandro@wuensche-management.com anmelden."));
+    }
     grid.appendChild(rechts);
   }
   v.appendChild(grid);
@@ -556,4 +577,48 @@ function tbRender(){
   v.appendChild(dzEl("div", "ci-mini tb-fuss",
     "Stand " + tbJetzt({ hour:"2-digit", minute:"2-digit" }) + " Uhr · aktualisiert sich alle 10 Minuten und beim Aufwecken · Bildschirm bleibt an, solange diese Seite offen ist" +
     (tb.wakeLock && !tb.wakeLock.released ? "" : " (Wachhalten nicht aktiv — Browser/Netzteil prüfen)") + "."));
+}
+
+/* Agenda-Kachel: Termine von heute + morgen mit Dauer und Farbe, vergangene gedimmt, laufender markiert;
+   darunter die faelligen/ueberfaelligen Google Tasks. Alles textContent — Titel sind Fremddaten. */
+function tbAgenda(box, ag){
+  const jetzt = Date.now();
+  const heute = ag.heute;
+  const morgen = ciShift(heute, 1);
+  const tage = [heute, morgen];
+  const events = ag.events || [];
+  tage.forEach((tag, idx) => {
+    const liste = events.filter(e => e.tag === tag);
+    box.appendChild(dzEl("div", "tb-ag-tag", (idx === 0 ? "Heute · " : "Morgen · ") + ciSchoen(tag)));
+    if (!liste.length){ box.appendChild(dzEl("div", "ci-mini tb-mini", "keine Termine")); return; }
+    liste.forEach(e => {
+      const vorbei = !e.allDay && e.eMs <= jetzt;
+      const laeuft = !e.allDay && e.sMs <= jetzt && e.eMs > jetzt;
+      const row = dzEl("div", "tb-ag-row" + (vorbei ? " tb-ag-vorbei" : "") + (laeuft ? " tb-ag-jetzt" : ""));
+      const bar = dzEl("span", "tb-ag-bar");
+      bar.style.background = /^#[0-9a-fA-F]{6}$/.test(e.farbe || "") ? e.farbe : "#7986cb";
+      row.appendChild(bar);
+      row.appendChild(dzEl("span", "tb-ag-zeit", e.allDay ? "ganztägig" : e.s + "–" + e.e));
+      const titel = dzEl("span", "tb-ag-titel", e.t);
+      titel.title = e.kal ? e.kal : "";
+      row.appendChild(titel);
+      box.appendChild(row);
+    });
+  });
+  const tasks = ag.tasks || [];
+  box.appendChild(dzEl("div", "tb-ag-tag", "Aufgaben" + (tasks.length ? " · " + tasks.length : "")));
+  if (ag.tasksFehler) box.appendChild(dzEl("div", "ci-mini tb-mini", "Google Tasks nicht lesbar: " + ag.tasksFehler));
+  else if (!tasks.length) box.appendChild(dzEl("div", "ci-mini tb-mini", "nichts fällig bis morgen"));
+  tasks.forEach(t => {
+    const ueberfaellig = t.due < heute;
+    const row = dzEl("div", "tb-ag-row tb-task" + (ueberfaellig ? " tb-task-spaet" : ""));
+    row.appendChild(dzEl("span", "tb-task-box", "☐"));
+    row.appendChild(dzEl("span", "tb-ag-zeit", t.due === heute ? "heute" : (t.due === morgen ? "morgen" : "seit " + t.due.slice(8,10) + "." + t.due.slice(5,7) + ".")));
+    const titel = dzEl("span", "tb-ag-titel", t.t);
+    titel.title = t.liste + (t.notiz ? " · " + t.notiz : "");
+    row.appendChild(titel);
+    box.appendChild(row);
+  });
+  if (ag.warnungen && ag.warnungen.length)
+    box.appendChild(dzEl("div", "ci-mini tb-mini", "Hinweis: " + ag.warnungen.join(" · ")));
 }

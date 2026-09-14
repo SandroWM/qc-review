@@ -29,9 +29,9 @@ Setup jetzt: `setup('EinmalAdminPasswort')` — kein Passwort mehr im Code.
   für krumme Werte, Viertelstunden); **der Tages-Status wird abgeleitet, nicht abgefragt:** ab 3 h =
   Kernblock = Grün, darunter eine Rückfrage „war das geplant?" → Joker/Rot (serverseitige Guards
   Stunden↔Kernblock↔Status; ein Eintrag pro Tag, Speichern ersetzt ihn komplett — die Karte zeigt
-  „Gespeichert: Grün · 4 h · 19:51 Uhr"). Musik und Sport sind reine Statistik-Felder und brechen die
+  „Gespeichert: Grün · 4 h · 19:51 Uhr"). Sport und Musik sind reine Statistik-Felder und brechen die
   Streak nie. Joker-Schnellknopf = 1 Tap. **7-Tage-Matrix** (seit 10.09.2026): Business (Stunden; ab 3 h
-  grün, Joker orange, sonst rot), Musik und Sport (✓/–, grau = laut Kalender nicht geplant) mit den Tagen
+  grün, Joker orange, sonst rot), Sport und Musik (✓/–, grau = laut Kalender nicht geplant) mit den Tagen
   nebeneinander, dazu je Zeile eine **30-Tage-Quote** „erledigt / eingetragene Soll-Tage" (Business
   zusätzlich Ø h). **Soll = Kalender-Struktur:** Business Mo–Fr + So (Samstag Off-Day), Musik und HH+Sport
   täglich; Joker-Tage reduzieren das Soll; Tages-Ausnahmen (z. B. Musik an Spätschicht-Tagen gelöscht)

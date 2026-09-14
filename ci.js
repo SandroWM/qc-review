@@ -13,7 +13,7 @@
 
    Seit 2026-09-10 (Sandro-Feedback): Business wird in STUNDEN erfasst (Kernblock = ab 3 h, daraus
    der Tages-Status: >= 3 h gruen, sonst Rueckfrage geplant? -> joker/rot). Statt der 14-Tage-
-   Ampelkacheln zeigt die Karte eine 7-Tage-Matrix (Business in Stunden · Musik · Sport, Tage
+   Ampelkacheln zeigt die Karte eine 7-Tage-Matrix (Business in Stunden · Sport · Musik, Tage
    nebeneinander) plus je Zeile eine 30-Tage-Quote "erledigt / eingetragene Soll-Tage" gegen das
    Kalender-Soll (Standardregeln unten, Ausnahmen aus os-data/checkin-soll.json via ci_get). */
 

@@ -350,12 +350,47 @@ function ciTaskDone(body){
   }
 }
 
-// Einmal im Script-Editor ausfuehren (Sandro): bewilligt den Schreib-Scope fuer Google Tasks und prueft den
-// Abhak-Weg an zwei TESTAUFGABEN (taeglich wiederholend, von Claude vorher in Google Tasks angelegt) — die
-// API kennt keine Wiederholungsregel, also wird gemessen, ob Google die Serie beim Abhaken per API fortsetzt:
+function ciTestDatei_(propKey, name, erg){
+  var inhalt = JSON.stringify(erg, null, 1);
+  try {
+    var folder = DriveApp.getFolderById(DZ_IDS.DZ_OSDATA_FOLDER_ID);
+    var alt = dzFileInFolder_(propKey, folder, name);
+    if (alt) alt.setContent(inhalt); else dzCreateInFolder_(propKey, folder, name, inhalt);
+  } catch(e){ Logger.log("Ergebnisdatei nicht schreibbar: " + e); }
+  Logger.log(inhalt);
+}
+
+// SCHRITT 1 — einmal im Script-Editor ausfuehren (Sandro): bewilligt den Schreib-Scope fuer Google Tasks.
+// Beweis ohne echte Aufgaben: legt eine undatierte Wegwerf-Aufgabe an (erscheint nicht auf dem Tablet), hakt sie
+// ueber denselben Weg wie das Tablet ab und wieder auf, entfernt sie. Beleg: os-data/ci-tasks-selftest.json.
+function ciAuthorizeTasksSchreiben(){
+  var erg = { lauf: new Date().toISOString(), ok: false };
+  try {
+    var d = ciAgendaDaten_();
+    erg.lesen = { tasks: d.tasks.length, mitIds: d.tasks.filter(function(t){ return t.id && t.lid; }).length, tasksFehler: d.tasksFehler };
+    var probe = Tasks.Tasks.insert({ title: "qc-review Selbsttest (wird sofort entfernt)",
+      notes: "Prueft das Schreibrecht fuers Abhaken auf dem Tablet." }, "@default");
+    erg.probe = { angelegt: !!(probe && probe.id) };
+    try {
+      erg.probe.abhaken = ciTaskSetzen_("@default", probe.id, true);
+      erg.probe.rueckgaengig = ciTaskSetzen_("@default", probe.id, false);
+    } finally {
+      // raeumt nur die eigene, zwei Sekunden alte Wegwerf-Aufgabe weg (ID aus dem insert oben)
+      try { Tasks.Tasks.remove("@default", probe.id); erg.probe.entfernt = true; }
+      catch(e){ erg.probe.entfernt = "nein: " + e; }
+    }
+    erg.ok = !d.tasksFehler && erg.probe.abhaken.status === "completed" && erg.probe.rueckgaengig.status === "needsAction";
+  } catch(e){ erg.fehler = String(e); }
+  ciTestDatei_("CI_TASKS_SELFTEST_ID", "ci-tasks-selftest.json", erg);
+  return erg;
+}
+
+// SCHRITT 2 — vor dem Deploy (Claude, im Editor; braucht keine neue Freigabe mehr): die Tasks-API kennt keine
+// Wiederholungsregel, also wird an zwei TESTAUFGABEN gemessen, ob Google die Serie beim Abhaken per API fortsetzt.
+// Vorher in Google Tasks anlegen, beide faellig heute, taeglich wiederholend:
 //   "ZZ Test Abhaken A" → abhaken                  (entsteht die naechste Instanz?)
 //   "ZZ Test Abhaken B" → abhaken + rueckgaengig   (bleibt die Serie heil?)
-// Beleg: os-data/ci-tasks-selftest.json (Schnappschuesse vorher/zwischen/nachher). Echte Aufgaben fasst er nicht an.
+// Beleg: os-data/ci-tasks-wiederholung.json (Schnappschuesse vorher/zwischen/nachher). Echte Aufgaben fasst er nicht an.
 var CI_TASK_TEST_TITEL = ["ZZ Test Abhaken A", "ZZ Test Abhaken B"];
 
 function ciTaskSchnappschuss_(titel){
@@ -375,11 +410,9 @@ function ciTaskSchnappschuss_(titel){
   return aus;
 }
 
-function ciAuthorizeTasksSchreiben(){
+function ciTesteWiederholung(){
   var erg = { lauf: new Date().toISOString(), ok: false, schritte: [] };
   try {
-    var d = ciAgendaDaten_();
-    erg.lesen = { tasks: d.tasks.length, mitIds: d.tasks.filter(function(t){ return t.id && t.lid; }).length, tasksFehler: d.tasksFehler };
     CI_TASK_TEST_TITEL.forEach(function(titel, i){
       var s = { titel: titel, vorher: ciTaskSchnappschuss_(titel) };
       var offen = s.vorher.filter(function(t){ return t.status === "needsAction"; })[0];
@@ -394,14 +427,9 @@ function ciAuthorizeTasksSchreiben(){
       }
       s.nachher = ciTaskSchnappschuss_(titel);
     });
-    erg.ok = !d.tasksFehler && erg.schritte.every(function(s){ return s.abhaken && s.abhaken.status === "completed"; });
+    // ok heisst nur "Ablauf lief durch" — ob die Serie heil blieb, zeigen die Schnappschuesse (und die Tasks-Oberflaeche)
+    erg.ok = erg.schritte.every(function(s){ return s.abhaken && s.abhaken.status === "completed"; });
   } catch(e){ erg.fehler = String(e); }
-  var inhalt = JSON.stringify(erg, null, 1);
-  try {
-    var folder = DriveApp.getFolderById(DZ_IDS.DZ_OSDATA_FOLDER_ID);
-    var alt = dzFileInFolder_("CI_TASKS_SELFTEST_ID", folder, "ci-tasks-selftest.json");
-    if (alt) alt.setContent(inhalt); else dzCreateInFolder_("CI_TASKS_SELFTEST_ID", folder, "ci-tasks-selftest.json", inhalt);
-  } catch(e){ Logger.log("Ergebnisdatei nicht schreibbar: " + e); }
-  Logger.log(inhalt);
+  ciTestDatei_("CI_TASKS_WIEDERHOLUNG_ID", "ci-tasks-wiederholung.json", erg);
   return erg;
 }

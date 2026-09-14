@@ -19,10 +19,13 @@ Setup jetzt: `setup('EinmalAdminPasswort')` — kein Passwort mehr im Code.
   (`ci_agenda`: fällige/überfällige Google Tasks oben, darunter Termine heute + morgen mit Dauer und Farbe —
   Farbquelle wie in der Google-Oberfläche: **Label** (`eventLabelId` → `Calendars.get().labelProperties`) >
   `colorId` > Kalenderfarbe (alte → heutige Palette); Advanced Services Calendar v3 + Tasks v1, Scopes
-  calendar.readonly + tasks.readonly; Fallback CalendarApp bzw. Google-Embed; abschaltbar, Zustand im
+  calendar.readonly + tasks; Fallback CalendarApp bzw. Google-Embed; abschaltbar, Zustand im
   localStorage). Termine, deren Ende mehr als 8 h zurückliegt, blendet die Agenda aus (ganztägige bleiben). Check-in-Teil rendert sofort, die Agenda lädt nach. Reihenfolge überall Business, Sport, Musik. Auto-Refresh alle 10 min + beim Sichtbarwerden, Bildschirm-Wachhalten per Screen Wake Lock
   (Chrome Android), Knopf „Check-in eintragen" wechselt in die Eingabe. Topbar ist ausgeblendet (`body.tablet-mode`),
-  „Menü" blendet sie wieder ein. Reine Anzeige — Kacheln sind dort nicht antippbar.
+  „Menü" blendet sie wieder ein. Check-in-Kacheln sind dort reine Anzeige. **Aufgaben abhaken (seit 14.09.2026):**
+  Aufgabe antippen → darunter „✓ Erledigt" / „Abbrechen" → `ci_task_done` setzt sie in Google Tasks auf erledigt
+  (nur der Status, nie Titel/Datum). Zwei Taps, damit ein Wisch nichts abhakt; die Zeile bleibt durchgestrichen mit
+  „Rückgängig" stehen, bis die Agenda neu lädt. Ohne Task-IDs (älteres Backend) bleiben die Zeilen reine Anzeige.
 - **Check-in** (Sandro, `ci.js`/`checkin.gs`, Direktlink `#checkin`) — Daily-Tracking des Minimaltag-Systems
   nach `os-data/checkins.json` im Drive; Tagesgrenze 04:00 Europe/Berlin (Nachtschicht), Streak-Regel
   „nie 2 rote Tage in Folge", Nachtrag ≤ 7 Tage. **Business wird in Stunden erfasst** (7 Pills 0–6 + Feld
@@ -107,6 +110,8 @@ Alle Calls: `POST <BACKEND_URL>` mit JSON-Body, Antwort `{ ok: bool, ... }`.
 | `submit` | `{action, token, mode, itemId, decision, rating, begruendung}` | `{ok, stats}` |
 | `ci_get` | `{action, token}` (admin) | `{ok, days:{"YYYY-MM-DD":{status,kernblock,stunden?,musik,sport,notiz,gespeichert}}, heute, soll}` · `soll` = Inhalt von `checkin-soll.json` oder `null` |
 | `ci_save` | `{action, token, datum, stunden, status, kernblock, musik, sport, notiz}` (admin) | `{ok, days, heute, soll}` · idempotent pro Datum, Fenster heute−7 T, Guards stunden↔kernblock (ab 3 h) und status↔kernblock; `stunden` Viertelstunden 0–24, optional (Alt-Client ohne Stunden → kernblock wie gesendet) |
+| `ci_agenda` | `{action, token}` (admin) | `{ok, heute, stand, quelle, events:[{t,tag,s,e,sMs,eMs,allDay,farbe,fq,label,kal}], tasks:[{t,due,liste,notiz,id,lid}], warnungen, tasksFehler}` · Termine heute + morgen, offene Aufgaben fällig ≤ morgen |
+| `ci_task_done` | `{action, token, lid, id, rueckgaengig?}` (admin) | `{ok, status, schon, due, completed?, um}` · setzt nur den Status (`completed`, mit `rueckgaengig:true` wieder `needsAction`); idempotent (`schon:true`, wenn der Status schon stimmt) |
 
 - `mode`: `review` \| `spotcheck` \| `screening`. `decision`: **`approve` \| `reject`** (keine `revision`-Option für den Reviewer).
 - `item`: `{itemId, contentTyp, sourceSop, creatorId, creatorName, assetUrl, vaDecision?}` (`vaDecision` nur im Spot-Check).

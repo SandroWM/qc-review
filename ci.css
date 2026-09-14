@@ -117,4 +117,22 @@ body.tablet-mode > #app-view > header.topbar{display:none}
 .tb-ag-jetzt .tb-ag-zeit{color:var(--text);font-weight:600}
 .tb-task .tb-task-box{font-size:18px;line-height:1;color:var(--text-3);width:6px;margin-left:-4px}
 .tb-task-spaet .tb-ag-zeit{color:var(--red)}
+/* Aufgaben abhaken (Sandro 14.09.2026): Zeile antippen → Panel mit „✓ Erledigt" / „Abbrechen" darunter.
+   Negativer Rand + Innenabstand: Hintergrund reicht bis an den Kachelrand, Spalten bleiben mit den Terminen buendig. */
+.tb-task-tap{grid-template-columns:6px 118px minmax(0,1fr) auto;min-height:50px;margin:0 -8px;padding:5px 8px;cursor:pointer;-webkit-tap-highlight-color:transparent;user-select:none}
+.tb-task-tap:active,.tb-task-offen{background:var(--surface-2)}
+.tb-task-offen{border-bottom-color:transparent;border-radius:var(--radius-sm) var(--radius-sm) 0 0}
+.tb-task-offen .tb-ag-titel{white-space:normal;font-weight:600}
+.tb-task-panel{display:flex;flex-direction:column;gap:10px;margin:0 -8px;padding:4px 8px 14px 142px;background:var(--surface-2);border-bottom:1px solid var(--border);border-radius:0 0 var(--radius-sm) var(--radius-sm)}
+.tb-task-notiz{font-size:14px;color:var(--text-2);white-space:pre-wrap;overflow-wrap:anywhere}
+.tb-task-knoepfe{display:flex;gap:10px;flex-wrap:wrap}
+button.primary.tb-task-ja{width:auto;min-height:56px;padding:0 30px;font-size:18px;font-weight:600;background:#2e7d32;border-color:#2e7d32;color:#fff}
+.tb-task-knoepfe .tb-btn{min-height:56px;font-size:16px;padding:0 22px}
+.tb-task-erledigt .tb-ag-titel{text-decoration:line-through;color:var(--text-3)}
+.tb-task-erledigt .tb-ag-zeit{color:var(--text-3)}
+.tb-task-erledigt .tb-task-box{color:var(--green)}
+.tb-task-erledigt{cursor:default}
+.tb-task-undo{min-height:40px;font-size:14px;padding:0 14px}
+.tb-task-fehler{font-size:14px;color:var(--red);padding:2px 0 6px 134px}
+@media (max-width:899px){ .tb-task-panel{padding-left:8px} .tb-task-fehler{padding-left:0} }
 @media (max-width:899px){ .tb-tag,.tb-uhr{font-size:21px} .tb-wrap .ci-z{min-height:54px;font-size:20px} }

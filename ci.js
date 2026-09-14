@@ -426,12 +426,15 @@ function ciZelle(item, d, interaktiv){
 /*  abschaltbar), Auto-Refresh alle 10 min + beim Sichtbarwerden,        */
 /*  Bildschirm-Wachhalten per Screen Wake Lock (Chrome Android, HTTPS).  */
 /*  Direktlink: …/#tablet — die 30-Tage-Sitzung greift wie am Handy.     */
+/*  Seit 14.09.2026: Aufgaben antippen → „✓ Erledigt" hakt sie direkt in */
+/*  Google Tasks ab (ci_task_done), ohne Sprung in die Kalender-App.     */
 /* =================================================================== */
 const TB_REFRESH_MS = 10 * 60 * 1000;
 const TB_AGENDA_AUSBLENDEN_H = 8;   // Sandro 14.09.: Termine, die seit 8+ h vorbei sind, nicht mehr zeigen
 const TB_KAL_URL = "https://calendar.google.com/calendar/embed?src=sandro%40wuensche-management.com" +
   "&ctz=Europe%2FBerlin&mode=AGENDA&hl=de&showTitle=0&showNav=0&showDate=0&showPrint=0&showTabs=0&showCalendars=0&showTz=0";
-const tb = { timer:null, uhrTimer:null, wakeLock:null, hooked:false, agenda:null };
+const tb = { timer:null, uhrTimer:null, wakeLock:null, hooked:false, agenda:null,
+             taskOffen:"", taskStatus:{} };   // Abhaken: aufgeklappte Aufgabe + lokaler Zustand je Aufgabe
 
 // Eigene Agenda (Kalender mit Dauer + Termin-Farben + Google Tasks) aus dem Backend (ci_agenda).
 // Schlaegt sie fehl (z. B. Kalender-Rechte noch nicht freigegeben), zeigt tbRender den Google-Embed.
@@ -440,6 +443,7 @@ async function tbLadeAgenda_(){
     const r = await api("ci_agenda", { token: state.token });
     tb.agenda = (r && r.ok) ? r : { ok:false, error:(r && r.error) || "ci_agenda fehlgeschlagen" };
   } catch (e){ tb.agenda = { ok:false, error: String(e && e.message ? e.message : e) }; }
+  if (tb.agenda.ok) tbTaskStatusAufraeumen_(tb.agenda);
 }
 
 function tbKalAn(){ try { return localStorage.getItem("qc_tb_kal") !== "0"; } catch(e){ return true; } }
@@ -597,6 +601,108 @@ function tbRender(){
     (tb.wakeLock && !tb.wakeLock.released ? "" : " (Wachhalten nicht aktiv — Browser/Netzteil prüfen)") + "."));
 }
 
+/* Aufgaben abhaken (Sandro 14.09.2026): Zeile antippen → darunter „✓ Erledigt" / „Abbrechen" → ci_task_done
+   setzt die Aufgabe in Google Tasks auf erledigt. Bewusst zwei Taps, damit ein Wisch übers Tablet nichts abhakt.
+   Die Zeile bleibt durchgestrichen mit „Rückgängig" stehen, bis die Agenda neu lädt — dann fällt sie raus
+   (das Backend liest nur offene Aufgaben). Schlüssel inkl. Fälligkeit: bei wiederkehrenden Aufgaben kann die
+   nächste Instanz dieselbe ID tragen. Ohne IDs (Backend vor dem Abhak-Deploy) bleibt die Zeile reine Anzeige. */
+function tbTaskKey(t){ return (t && t.lid && t.id) ? t.lid + "/" + t.id + "/" + t.due : ""; }
+
+function tbTaskStatusAufraeumen_(ag){
+  const da = {};
+  (ag.tasks || []).forEach(t => { const k = tbTaskKey(t); if (k) da[k] = true; });
+  Object.keys(tb.taskStatus).forEach(k => {
+    const st = tb.taskStatus[k];
+    if (st.s === "laeuft") return;                         // Anfrage unterwegs — nicht anfassen
+    if (!da[k] || !st.s){ delete tb.taskStatus[k]; return; }   // abgehakt + rausgefallen, oder nur ein alter Fehler
+    delete st.fehler;
+    // Liste entstand NACH dem Abhaken und führt die Aufgabe trotzdem offen → anderswo wieder geöffnet
+    if (st.s === "erledigt" && st.um && ag.stand && ag.stand > st.um) delete tb.taskStatus[k];
+  });
+  if (tb.taskOffen && !da[tb.taskOffen]) tb.taskOffen = "";
+}
+
+// Nur die Agenda-Kachel neu zeichnen (Scroll-Position bleibt, Uhr/Timer laufen weiter)
+function tbAgendaNeuZeichnen_(){
+  if (state.mode !== "tablet") return;
+  const box = document.querySelector("#tablet-view .tb-kal");
+  if (!box || !(tb.agenda && tb.agenda.ok)){ tbRender(); return; }
+  const oben = box.scrollTop;
+  dzClear(box);
+  tbAgenda(box, tb.agenda);
+  box.scrollTop = oben;
+}
+
+async function tbTaskSetzen_(t, erledigt){
+  const key = tbTaskKey(t);
+  if (!key || (tb.taskStatus[key] || {}).s === "laeuft") return;
+  tb.taskStatus[key] = { s: "laeuft", ziel: erledigt };
+  tbAgendaNeuZeichnen_();
+  let r = null, fehler = "";
+  try {
+    r = await api("ci_task_done", { token: state.token, lid: t.lid, id: t.id, rueckgaengig: !erledigt });
+    if (!r || !r.ok) fehler = (r && r.error) || "keine Antwort vom Backend";
+  } catch (e){ fehler = String(e && e.message ? e.message : e); }
+  if (fehler){
+    // Zustand vor dem Tipp wiederherstellen, Fehler an der Zeile zeigen
+    tb.taskStatus[key] = erledigt ? { s: "", fehler: "Nicht abgehakt: " + fehler }
+                                  : { s: "erledigt", um: "", fehler: "Nicht zurückgesetzt: " + fehler };
+    if (erledigt) tb.taskOffen = key;
+  } else if (erledigt){
+    tb.taskStatus[key] = { s: "erledigt", um: String(r.um || "") };
+    tb.taskOffen = "";
+  } else {
+    delete tb.taskStatus[key];
+  }
+  tbAgendaNeuZeichnen_();
+}
+
+function tbTaskZeile_(box, t, heute, morgen){
+  const key = tbTaskKey(t);
+  const st = (key && tb.taskStatus[key]) || {};
+  const laeuft = st.s === "laeuft";
+  const erledigt = st.s === "erledigt" || (laeuft && st.ziel === false);
+  const offen = !!key && tb.taskOffen === key && !erledigt;
+  const row = dzEl("div", "tb-ag-row tb-task" + (key ? " tb-task-tap" : "") + (t.due < heute && !erledigt ? " tb-task-spaet" : "") +
+    (erledigt ? " tb-task-erledigt" : "") + (offen ? " tb-task-offen" : ""));
+  row.appendChild(dzEl("span", "tb-task-box", erledigt ? "☑" : "☐"));
+  row.appendChild(dzEl("span", "tb-ag-zeit", t.due === heute ? "heute" : (t.due === morgen ? "morgen" : "seit " + t.due.slice(8,10) + "." + t.due.slice(5,7) + ".")));
+  const titel = dzEl("span", "tb-ag-titel", t.t);
+  titel.title = t.liste + (t.notiz ? " · " + t.notiz : "");
+  row.appendChild(titel);
+  box.appendChild(row);
+  if (!key) return;
+
+  if (erledigt){
+    const zurueck = dzEl("button", "dz-btn tb-task-undo", laeuft ? "…" : "Rückgängig");
+    zurueck.type = "button"; zurueck.disabled = laeuft;
+    zurueck.onclick = (ev) => { ev.stopPropagation(); tbTaskSetzen_(t, false); };
+    row.appendChild(zurueck);
+  } else {
+    row.setAttribute("role", "button");
+    row.tabIndex = 0;
+    const umschalten = () => { if (laeuft) return; tb.taskOffen = offen ? "" : key; tbAgendaNeuZeichnen_(); };
+    row.onclick = umschalten;
+    row.onkeydown = (ev) => { if (ev.key === "Enter" || ev.key === " "){ ev.preventDefault(); umschalten(); } };
+  }
+  if (st.fehler) box.appendChild(dzEl("div", "tb-task-fehler", st.fehler));
+  if (!offen) return;
+
+  const panel = dzEl("div", "tb-task-panel");
+  if (t.notiz) panel.appendChild(dzEl("div", "tb-task-notiz", t.notiz));
+  const knoepfe = dzEl("div", "tb-task-knoepfe");
+  const ja = dzEl("button", "primary tb-task-ja", laeuft ? "Wird abgehakt …" : "✓ Erledigt");
+  ja.type = "button"; ja.disabled = laeuft;
+  ja.onclick = () => tbTaskSetzen_(t, true);
+  const nein = dzEl("button", "dz-btn tb-btn", "Abbrechen");
+  nein.type = "button"; nein.disabled = laeuft;
+  nein.onclick = () => { tb.taskOffen = ""; tbAgendaNeuZeichnen_(); };
+  knoepfe.appendChild(ja);
+  knoepfe.appendChild(nein);
+  panel.appendChild(knoepfe);
+  box.appendChild(panel);
+}
+
 /* Agenda-Kachel: Termine von heute + morgen mit Dauer und Farbe, vergangene gedimmt, laufender markiert;
    darunter die faelligen/ueberfaelligen Google Tasks. Alles textContent — Titel sind Fremddaten. */
 function tbAgenda(box, ag){
@@ -606,21 +712,13 @@ function tbAgenda(box, ag){
   const tage = [heute, morgen];
   const events = ag.events || [];
 
-  // Aufgaben zuerst (Sandro 13.09.: "ganz oben, nicht ganz unten") — überfällige vorn, rot.
+  // Aufgaben zuerst (Sandro 13.09.: "ganz oben, nicht ganz unten") — überfällige vorn, rot. Antippbar seit 14.09.
   const tasks = ag.tasks || [];
-  box.appendChild(dzEl("div", "tb-ag-tag", "Aufgaben" + (tasks.length ? " · " + tasks.length : "")));
+  const nOffen = tasks.filter(t => (tb.taskStatus[tbTaskKey(t)] || {}).s !== "erledigt").length;
+  box.appendChild(dzEl("div", "tb-ag-tag", "Aufgaben" + (tasks.length ? " · " + nOffen + (nOffen < tasks.length ? " offen" : "") : "")));
   if (ag.tasksFehler) box.appendChild(dzEl("div", "ci-mini tb-mini", "Google Tasks nicht lesbar: " + ag.tasksFehler));
   else if (!tasks.length) box.appendChild(dzEl("div", "ci-mini tb-mini", "nichts fällig bis morgen"));
-  tasks.forEach(t => {
-    const ueberfaellig = t.due < heute;
-    const row = dzEl("div", "tb-ag-row tb-task" + (ueberfaellig ? " tb-task-spaet" : ""));
-    row.appendChild(dzEl("span", "tb-task-box", "☐"));
-    row.appendChild(dzEl("span", "tb-ag-zeit", t.due === heute ? "heute" : (t.due === morgen ? "morgen" : "seit " + t.due.slice(8,10) + "." + t.due.slice(5,7) + ".")));
-    const titel = dzEl("span", "tb-ag-titel", t.t);
-    titel.title = t.liste + (t.notiz ? " · " + t.notiz : "");
-    row.appendChild(titel);
-    box.appendChild(row);
-  });
+  tasks.forEach(t => tbTaskZeile_(box, t, heute, morgen));
 
   const grenzeMs = jetzt - TB_AGENDA_AUSBLENDEN_H * 3600000;
   tage.forEach((tag, idx) => {

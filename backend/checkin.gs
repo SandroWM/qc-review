@@ -126,11 +126,12 @@ function ciSave(body){
   } finally { lock.releaseLock(); }
 }
 
-// ======================= Agenda fuers Tablet-Dashboard (Kalender + Google Tasks, NUR lesen) =======================
+// ======================= Agenda fuers Tablet-Dashboard (Kalender lesen + Google Tasks lesen/abhaken) =======================
 // Sandro 13.09.2026: der Google-Kalender-Embed zeigt weder Dauer noch Termin-Farben noch Tasks. Darum eine
 // eigene Kachel. Termine ueber den Advanced Service "Calendar" (Rohdaten der Calendar API v3), Fallback
-// CalendarApp. Tasks ueber den Advanced Service "Tasks". Scopes calendar.readonly + tasks.readonly —
-// nichts wird geschrieben. Zeitzone Europe/Berlin.
+// CalendarApp. Tasks ueber den Advanced Service "Tasks". Scopes calendar.readonly + tasks — der Kalender
+// wird nie geschrieben; bei Tasks aendert ci_task_done ausschliesslich den Status (abhaken/rueckgaengig,
+// Sandro 14.09.2026). Zeitzone Europe/Berlin.
 //
 // FARBEN — Befund 13.09.2026 abends (Web-UI gegen API-Rohdaten verglichen):
 //  1. Google-Kalender-LABELS: Termine tragen `eventLabelId`; Name + Farbe der Labels stehen NICHT am Termin,
@@ -277,7 +278,8 @@ function ciAgendaDaten_(){
       ((r && r.items) || []).forEach(function(tk){
         if (!tk.due) return;                                   // undatierte Aufgaben nicht aufs Dashboard
         tasks.push({ t: String(tk.title || "(ohne Titel)"), due: String(tk.due).slice(0, 10),
-                     liste: String(l.title || ""), notiz: String(tk.notes || "").slice(0, 120) });
+                     liste: String(l.title || ""), notiz: String(tk.notes || "").slice(0, 120),
+                     id: String(tk.id || ""), lid: String(l.id || "") });   // IDs fuers Abhaken (ci_task_done)
       });
     });
     tasks.sort(function(a, b){ return a.due < b.due ? -1 : a.due > b.due ? 1 : 0; });
@@ -315,4 +317,91 @@ function ciAuthorizeAgenda(){
   } catch(e){ Logger.log("Ergebnisdatei nicht schreibbar: " + e); }
   Logger.log(inhalt);
   return ergebnis;
+}
+
+// ======================= Aufgaben abhaken (Tablet) =======================
+// Sandro 14.09.2026: Aufgabe auf dem Tablet antippen → „Erledigt" → in Google Tasks abgehakt, ohne Umweg
+// ueber die Kalender-App. Aendert NUR den Status (completed ↔ needsAction), nie Titel/Datum/Notiz.
+// Braucht den Scope tasks (schreiben) statt tasks.readonly = neuer Consent → erst ciAuthorizeTasksSchreiben()
+// im Editor, DANN deployen (sonst steht die Web-App fuer alle ohne Berechtigung da).
+var CI_TASK_ID_RE = /^[A-Za-z0-9_-]{1,200}$/;
+
+function ciTaskSetzen_(lid, id, erledigt){
+  var tk = Tasks.Tasks.get(lid, id);
+  if (!tk || tk.deleted) throw new Error("Aufgabe nicht gefunden (geloescht?)");
+  var ziel = erledigt ? "completed" : "needsAction";
+  if (tk.status === ziel) return { status: ziel, schon: true, due: String(tk.due || "").slice(0, 10), um: new Date().toISOString() };
+  var r = Tasks.Tasks.patch({ status: ziel }, lid, id);
+  return { status: String(r.status || ""), schon: false, due: String(r.due || "").slice(0, 10),
+           completed: String(r.completed || ""), um: new Date().toISOString() };
+}
+
+function ciTaskDone(body){
+  var p = auth_(body.token);
+  if (p.r !== "admin") return { ok:false, error:"Nur Admin." };
+  var lid = String(body.lid || ""), id = String(body.id || "");
+  if (!CI_TASK_ID_RE.test(lid) || !CI_TASK_ID_RE.test(id)) return { ok:false, error:"Ungültige Aufgaben-ID." };
+  try {
+    var r = ciTaskSetzen_(lid, id, body.rueckgaengig !== true);
+    r.ok = true;
+    return r;
+  } catch(e){
+    return { ok:false, error:"Aufgabe nicht änderbar: " + e };
+  }
+}
+
+// Einmal im Script-Editor ausfuehren (Sandro): bewilligt den Schreib-Scope fuer Google Tasks und prueft den
+// Abhak-Weg an zwei TESTAUFGABEN (taeglich wiederholend, von Claude vorher in Google Tasks angelegt) — die
+// API kennt keine Wiederholungsregel, also wird gemessen, ob Google die Serie beim Abhaken per API fortsetzt:
+//   "ZZ Test Abhaken A" → abhaken                  (entsteht die naechste Instanz?)
+//   "ZZ Test Abhaken B" → abhaken + rueckgaengig   (bleibt die Serie heil?)
+// Beleg: os-data/ci-tasks-selftest.json (Schnappschuesse vorher/zwischen/nachher). Echte Aufgaben fasst er nicht an.
+var CI_TASK_TEST_TITEL = ["ZZ Test Abhaken A", "ZZ Test Abhaken B"];
+
+function ciTaskSchnappschuss_(titel){
+  var aus = [];
+  ((Tasks.Tasklists.list({ maxResults: 20 }).items) || []).forEach(function(l){
+    var token = null;
+    do {
+      var r = Tasks.Tasks.list(l.id, { showCompleted: true, showHidden: true, maxResults: 100, pageToken: token || undefined });
+      ((r && r.items) || []).forEach(function(tk){
+        if (String(tk.title || "") !== titel) return;
+        aus.push({ lid: l.id, id: tk.id, status: tk.status, due: String(tk.due || "").slice(0, 10),
+                   completed: String(tk.completed || ""), hidden: !!tk.hidden, updated: String(tk.updated || "") });
+      });
+      token = r && r.nextPageToken;
+    } while (token);
+  });
+  return aus;
+}
+
+function ciAuthorizeTasksSchreiben(){
+  var erg = { lauf: new Date().toISOString(), ok: false, schritte: [] };
+  try {
+    var d = ciAgendaDaten_();
+    erg.lesen = { tasks: d.tasks.length, mitIds: d.tasks.filter(function(t){ return t.id && t.lid; }).length, tasksFehler: d.tasksFehler };
+    CI_TASK_TEST_TITEL.forEach(function(titel, i){
+      var s = { titel: titel, vorher: ciTaskSchnappschuss_(titel) };
+      var offen = s.vorher.filter(function(t){ return t.status === "needsAction"; })[0];
+      erg.schritte.push(s);
+      if (!offen){ s.hinweis = "keine offene Testaufgabe gefunden"; return; }
+      s.abhaken = ciTaskSetzen_(offen.lid, offen.id, true);
+      Utilities.sleep(4000);
+      if (i === 1){
+        s.zwischen = ciTaskSchnappschuss_(titel);
+        s.rueckgaengig = ciTaskSetzen_(offen.lid, offen.id, false);
+        Utilities.sleep(4000);
+      }
+      s.nachher = ciTaskSchnappschuss_(titel);
+    });
+    erg.ok = !d.tasksFehler && erg.schritte.every(function(s){ return s.abhaken && s.abhaken.status === "completed"; });
+  } catch(e){ erg.fehler = String(e); }
+  var inhalt = JSON.stringify(erg, null, 1);
+  try {
+    var folder = DriveApp.getFolderById(DZ_IDS.DZ_OSDATA_FOLDER_ID);
+    var alt = dzFileInFolder_("CI_TASKS_SELFTEST_ID", folder, "ci-tasks-selftest.json");
+    if (alt) alt.setContent(inhalt); else dzCreateInFolder_("CI_TASKS_SELFTEST_ID", folder, "ci-tasks-selftest.json", inhalt);
+  } catch(e){ Logger.log("Ergebnisdatei nicht schreibbar: " + e); }
+  Logger.log(inhalt);
+  return erg;
 }

@@ -20,7 +20,7 @@ Setup jetzt: `setup('EinmalAdminPasswort')` — kein Passwort mehr im Code.
   Farbquelle wie in der Google-Oberfläche: **Label** (`eventLabelId` → `Calendars.get().labelProperties`) >
   `colorId` > Kalenderfarbe (alte → heutige Palette); Advanced Services Calendar v3 + Tasks v1, Scopes
   calendar.readonly + tasks.readonly; Fallback CalendarApp bzw. Google-Embed; abschaltbar, Zustand im
-  localStorage). Check-in-Teil rendert sofort, die Agenda lädt nach. Auto-Refresh alle 10 min + beim Sichtbarwerden, Bildschirm-Wachhalten per Screen Wake Lock
+  localStorage). Termine, deren Ende mehr als 8 h zurückliegt, blendet die Agenda aus (ganztägige bleiben). Check-in-Teil rendert sofort, die Agenda lädt nach. Reihenfolge überall Business, Sport, Musik. Auto-Refresh alle 10 min + beim Sichtbarwerden, Bildschirm-Wachhalten per Screen Wake Lock
   (Chrome Android), Knopf „Check-in eintragen" wechselt in die Eingabe. Topbar ist ausgeblendet (`body.tablet-mode`),
   „Menü" blendet sie wieder ein. Reine Anzeige — Kacheln sind dort nicht antippbar.
 - **Check-in** (Sandro, `ci.js`/`checkin.gs`, Direktlink `#checkin`) — Daily-Tracking des Minimaltag-Systems

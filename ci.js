@@ -26,8 +26,8 @@ const CI_TAGE_MATRIX = 7;
 const CI_TAGE_QUOTE = 30;
 const CI_ITEMS = [
   { key:"business", label:"Business (h)" },
-  { key:"musik",    label:"Musik" },
-  { key:"sport",    label:"Sport" }
+  { key:"sport",    label:"Sport" },     // Reihenfolge Business -> Sport -> Musik (Sandro 14.09.2026)
+  { key:"musik",    label:"Musik" }
 ];
 /* Kalender-Soll, Stand 10.09.2026 (Kalender sandro@wuensche-management.com): Business-Bloecke
    Mo–Fr + So (Samstag = Off-Day), Musik 16–17 und HH+Sport taeglich. Wochentage nach getUTCDay
@@ -272,8 +272,8 @@ function ciRender(){
     [[true, "Ja — Joker", "p-joker"], [false, "Nein — Rot", "p-rot"]]);
   geplantRow.classList.add("ci-geplant");
   card.appendChild(geplantRow);
-  card.appendChild(frage("Musik gemacht?", "musik", [[true, "Ja"], [false, "Nein"]]));
   card.appendChild(frage("Sport gemacht?", "sport", [[true, "Ja"], [false, "Nein"]]));
+  card.appendChild(frage("Musik gemacht?", "musik", [[true, "Ja"], [false, "Nein"]]));
 
   // Live-Anzeige des abgeleiteten Status
   const statuszeile = dzEl("div", "ci-status-zeile");
@@ -343,7 +343,7 @@ function ciRender(){
   skarte.appendChild(dzEl("div", "ci-mini",
     "Regel: nie 2 rote Tage in Folge. Grün & Joker brechen nichts, ein einzelnes Rot auch nicht. " +
     "Nur eingetragene Tage zählen — eine Lücke beendet die Zählung. " +
-    "Die Streak zählt NUR den Kernblock (ab " + CI_KERNBLOCK_H + " h) — Musik und Sport sind reine Statistik und können sie nie brechen."));
+    "Die Streak zählt NUR den Kernblock (ab " + CI_KERNBLOCK_H + " h) — Sport und Musik sind reine Statistik und können sie nie brechen."));
 
   const stats = {};
   CI_ITEMS.forEach(it => { stats[it.key] = ciStat(it.key, CI_TAGE_QUOTE); });
@@ -355,7 +355,7 @@ function ciRender(){
       ohne.map(it => it.label.replace(" (h)", "") + " " + stats[it.key].ohne).join(" · ") + "."));
   skarte.appendChild(dzEl("div", "ci-mini",
     "Zahl = Business-Stunden: ab " + CI_KERNBLOCK_H + " h grün, Joker orange, Rot = ungeplant darunter. " +
-    "Musik/Sport: ✓ gemacht, – nicht; grau = an dem Tag laut Kalender nicht geplant (Joker-Tage, Musik an Spätschicht-Tagen). " +
+    "Sport/Musik: ✓ gemacht, – nicht; grau = an dem Tag laut Kalender nicht geplant (Joker-Tage, Musik an Spätschicht-Tagen). " +
     CI_TAGE_QUOTE + "-T-Quote = erledigt / eingetragene Soll-Tage (Samstag ist kein Business-Soll). " +
     "Kachel antippen = Tag nachtragen (bis 7 Tage zurück)."));
   v.appendChild(skarte);
@@ -428,6 +428,7 @@ function ciZelle(item, d, interaktiv){
 /*  Direktlink: …/#tablet — die 30-Tage-Sitzung greift wie am Handy.     */
 /* =================================================================== */
 const TB_REFRESH_MS = 10 * 60 * 1000;
+const TB_AGENDA_AUSBLENDEN_H = 8;   // Sandro 14.09.: Termine, die seit 8+ h vorbei sind, nicht mehr zeigen
 const TB_KAL_URL = "https://calendar.google.com/calendar/embed?src=sandro%40wuensche-management.com" +
   "&ctz=Europe%2FBerlin&mode=AGENDA&hl=de&showTitle=0&showNav=0&showDate=0&showPrint=0&showTabs=0&showCalendars=0&showTz=0";
 const tb = { timer:null, uhrTimer:null, wakeLock:null, hooked:false, agenda:null };
@@ -621,10 +622,17 @@ function tbAgenda(box, ag){
     box.appendChild(row);
   });
 
+  const grenzeMs = jetzt - TB_AGENDA_AUSBLENDEN_H * 3600000;
   tage.forEach((tag, idx) => {
-    const liste = events.filter(e => e.tag === tag);
+    const alle = events.filter(e => e.tag === tag);
+    // Zeitgebundene Termine, deren ENDE mehr als 8 h zurueckliegt, fallen weg; ganztaegige bleiben stehen.
+    // Juengst vergangene (unter 8 h) bleiben gedimmt sichtbar.
+    const liste = alle.filter(e => e.allDay || e.eMs > grenzeMs);
+    const versteckt = alle.length - liste.length;
     box.appendChild(dzEl("div", "tb-ag-tag", (idx === 0 ? "Heute · " : "Morgen · ") + ciSchoen(tag)));
-    if (!liste.length){ box.appendChild(dzEl("div", "ci-mini tb-mini", "keine Termine")); return; }
+    if (versteckt) box.appendChild(dzEl("div", "ci-mini tb-mini tb-ag-versteckt",
+      versteckt + (versteckt === 1 ? " früherer Termin" : " frühere Termine") + " ausgeblendet (vor über " + TB_AGENDA_AUSBLENDEN_H + " h vorbei)"));
+    if (!liste.length){ box.appendChild(dzEl("div", "ci-mini tb-mini", versteckt ? "keine weiteren Termine" : "keine Termine")); return; }
     liste.forEach(e => {
       const vorbei = !e.allDay && e.eMs <= jetzt;
       const laeuft = !e.allDay && e.sMs <= jetzt && e.eMs > jetzt;

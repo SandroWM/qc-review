@@ -703,6 +703,25 @@ function tbTaskZeile_(box, t, heute, morgen){
   box.appendChild(panel);
 }
 
+/* Mehrtägige Termine (Sandro 14.09.2026, z. B. „M+P Urlaub"): „Tag 4 von 9" + „noch 5 Tage", damit man sieht,
+   wie viel vom Zeitraum übrig ist. Gezählt wird in Berliner Kalendertagen über Datums-Strings (DST-fest).
+   Ganztägig: Ende ist exklusiv (00:00 des Folgetags). Zeitgebunden erst ab 24 h Dauer — sonst bekäme jeder
+   Termin über Mitternacht (Schlaf, Schicht, Business bis 00:45) einen Zähler. */
+function tbBerlinDatum_(ms){
+  try { return new Intl.DateTimeFormat("en-CA", { timeZone:"Europe/Berlin", year:"numeric", month:"2-digit", day:"2-digit" }).format(new Date(ms)); }
+  catch(e){ return new Date(ms).toISOString().slice(0, 10); }
+}
+function tbMehrtaegig_(e){
+  if (!(typeof e.sMs === "number" && typeof e.eMs === "number" && e.sMs < e.eMs)) return null;
+  if (!e.allDay && e.eMs - e.sMs < 86400000) return null;
+  const erster = tbBerlinDatum_(e.sMs);
+  const letzter = e.allDay ? ciShift(tbBerlinDatum_(e.eMs), -1) : tbBerlinDatum_(e.eMs - 1);
+  const gesamt = ciDiffTage(letzter, erster) + 1;
+  const nr = ciDiffTage(e.tag, erster) + 1;
+  if (gesamt < 2 || nr < 1 || nr > gesamt) return null;
+  return { nr: nr, gesamt: gesamt, rest: gesamt - nr };
+}
+
 /* Agenda-Kachel: Termine von heute + morgen mit Dauer und Farbe, vergangene gedimmt, laufender markiert;
    darunter die faelligen/ueberfaelligen Google Tasks. Alles textContent — Titel sind Fremddaten. */
 function tbAgenda(box, ag){
@@ -738,9 +757,17 @@ function tbAgenda(box, ag){
       const bar = dzEl("span", "tb-ag-bar");
       bar.style.background = /^#[0-9a-fA-F]{6}$/.test(e.farbe || "") ? e.farbe : "#7986cb";
       row.appendChild(bar);
-      row.appendChild(dzEl("span", "tb-ag-zeit", e.allDay ? "ganztägig" : e.s + "–" + e.e));
+      const mt = tbMehrtaegig_(e);
+      // Zeitspalte: ganztägig mehrtägig → „Tag 4 von 9"; zeitgebunden mehrtägig → ab/bis am ersten/letzten Tag
+      let zeit = e.allDay ? "ganztägig" : e.s + "–" + e.e;
+      if (mt && e.allDay) zeit = "Tag " + mt.nr + " von " + mt.gesamt;
+      else if (mt) zeit = mt.nr === 1 ? "ab " + e.s : (mt.rest === 0 ? "bis " + e.e : "ganztägig");
+      row.appendChild(dzEl("span", "tb-ag-zeit", zeit));
       const titel = dzEl("span", "tb-ag-titel", e.t);
       titel.title = [e.label, e.kal].filter(Boolean).join(" · ");
+      if (mt) titel.appendChild(dzEl("span", "tb-ag-rest",
+        (e.allDay ? "" : "Tag " + mt.nr + " von " + mt.gesamt + " · ") +
+        (mt.rest === 0 ? "letzter Tag" : "noch " + mt.rest + (mt.rest === 1 ? " Tag" : " Tage"))));
       row.appendChild(titel);
       box.appendChild(row);
     });

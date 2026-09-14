@@ -112,6 +112,7 @@ body.tablet-mode > #app-view > header.topbar{display:none}
 .tb-ag-bar{width:6px;height:26px;border-radius:3px}
 .tb-ag-zeit{font-size:15px;font-variant-numeric:tabular-nums;color:var(--text-2);white-space:nowrap}
 .tb-ag-titel{font-size:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tb-ag-rest{font-size:14px;color:var(--text-3);font-weight:400;margin-left:10px}   /* mehrtägig: „noch 5 Tage" (14.09.) */
 .tb-ag-vorbei{opacity:.45}
 .tb-ag-jetzt .tb-ag-titel{font-weight:600}
 .tb-ag-jetzt .tb-ag-zeit{color:var(--text);font-weight:600}

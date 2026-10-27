@@ -28,7 +28,7 @@ function dzWertKlasse(w){
 function dzSwitchMode(){
   const m = state.mode;
   const ws = document.querySelector(".workspace"), sb = document.querySelector(".statbar");
-  const tabs = $("typ-tabs"), dzV = $("dz-view"), ckV = $("cockpit-view"), ciV = $("ci-view"), tbV = $("tablet-view");
+  const tabs = $("typ-tabs"), dzV = $("dz-view"), ckV = $("cockpit-view"), ciV = $("ci-view"), tbV = $("tablet-view"), t2V = $("tablet2-view");
   const qc = (m === "review" || m === "spotcheck" || m === "screening");
   if (ws) ws.hidden = !qc;
   if (sb) sb.hidden = !qc;
@@ -37,13 +37,15 @@ function dzSwitchMode(){
   if (ckV) ckV.hidden = (m !== "cockpit");
   if (ciV) ciV.hidden = (m !== "checkin");
   if (tbV) tbV.hidden = (m !== "tablet");
-  // Tablet-Dashboard: Topbar weg (CSS ueber body-Klasse), Menue kommt ueber den Knopf in der Ansicht zurueck
-  document.body.classList.toggle("tablet-mode", m === "tablet");
+  if (t2V) t2V.hidden = (m !== "tablet2");
+  // Tablet-Dashboard (alt + neu): Topbar weg (CSS ueber body-Klasse), Menue kommt ueber den Knopf in der Ansicht zurueck
+  document.body.classList.toggle("tablet-mode", m === "tablet" || m === "tablet2");
   dzEnsureTabs();
   if (m === "dz") dzLoad();
   else if (m === "cockpit") ckLoad();
   else if (m === "checkin"){ if (window.ciMount) window.ciMount(); }
   else if (m === "tablet"){ if (window.tbMount) window.tbMount(); }
+  else if (m === "tablet2"){ if (window.t2Mount) window.t2Mount(); }
   else loadNext();
 }
 

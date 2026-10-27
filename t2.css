@@ -1,0 +1,159 @@
+/* Tablet-Tracker (neue Tablet-Ansicht #tablet2, seit 24.10.2026) — Look der QC-App (CSS-Variablen aus style.css,
+   hell/dunkel automatisch). Querformat-Tablet (~1280×800): drei Spalten Heute | Woche + Messwerte | Belohnungsleiter;
+   760–1099 px zwei Spalten (Leiter darunter), darunter eine Spalte. Tap-Ziele >= 48 px. */
+
+.t2-wrap{max-width:1500px;margin:0 auto;padding:10px 14px 14px;display:flex;flex-direction:column;gap:10px;min-height:100vh}
+.t2-mini{font-size:13px;color:var(--text-3)}
+.t2-warn{color:var(--amber)}
+.t2-rot{color:var(--red)}
+.t2-gruen{color:var(--green)}
+.t2-fehler{font-size:14px;color:var(--red);background:var(--red-bg);border:1px solid var(--red);border-radius:var(--radius-sm);padding:8px 12px}
+
+/* Kopf */
+.t2-kopf{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.t2-kopf-links{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.t2-datum{font-size:24px;font-weight:600}
+.t2-uhr{font-size:24px;font-weight:500;color:var(--text-2);font-variant-numeric:tabular-nums}
+.t2-chip{display:inline-flex;align-items:baseline;gap:8px;min-height:44px;padding:0 16px;border-radius:99px;border:1px solid var(--border-2);background:var(--surface);font-size:16px;font-weight:600;cursor:pointer}
+.t2-chip-schicht{background:var(--amber-bg);color:var(--amber);border-color:var(--amber)}
+.t2-chip-frei{background:var(--green-bg);color:var(--green);border-color:var(--green)}
+.t2-chip-zusatz{font-size:12px;font-weight:500;opacity:.8}
+.t2-knoepfe{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.t2-btn{min-height:46px;font-size:15px;padding:0 16px}
+button.primary.t2-btn{width:auto}
+.t2-btn-review{animation:t2Puls 2.4s ease-in-out infinite}
+@keyframes t2Puls{0%,100%{box-shadow:0 0 0 0 rgba(24,95,165,.0)}50%{box-shadow:0 0 0 6px rgba(24,95,165,.25)}}
+.t2-speichert{font-style:italic}
+.t2-btn-klein{min-height:40px;font-size:14px;padding:0 12px}
+button.primary.t2-btn-klein{width:auto;padding:0 14px}
+.t2-link{background:none;border:0;padding:4px 0;color:var(--info);font-size:13px;cursor:pointer;text-align:left}
+
+/* Raster */
+.t2-grid{display:grid;grid-template-columns:1fr;gap:10px;align-items:start}
+@media (min-width:760px){ .t2-grid{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr)} .t2-spalte-leiter{grid-column:1 / -1} }
+@media (min-width:1100px){ .t2-grid{grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) minmax(0,.85fr)} .t2-spalte-leiter{grid-column:auto} }
+.t2-spalte{display:flex;flex-direction:column;gap:10px;min-width:0}
+.t2-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.t2-card.st-rot{border-color:var(--red);box-shadow:inset 5px 0 0 var(--red)}
+.t2-card.st-amber{box-shadow:inset 5px 0 0 var(--amber)}
+.t2-card.st-gruen{box-shadow:inset 5px 0 0 var(--green)}
+.t2-karte-kopf{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.t2-karte-titel{font-size:17px;font-weight:650}
+.t2-pflicht{font-size:12px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.04em}
+.t2-untertitel{font-weight:600;font-size:15px;margin-top:4px}
+
+/* Tageswahl (bis 7 Tage zurueck korrigierbar) */
+.t2-tagwahl{display:flex;align-items:center;gap:6px;margin-left:auto}
+.t2-pfeil{min-width:44px;min-height:40px;font-size:20px;padding:0}
+.t2-tagwahl-text{font-size:14px;font-weight:600;color:var(--text-2);min-width:110px;text-align:center}
+
+/* Business */
+.t2-timer-zeile{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.t2-timer{font-size:38px;font-weight:650;font-variant-numeric:tabular-nums;line-height:1;color:var(--text-3);min-width:190px}
+.t2-timer.laeuft{color:var(--text)}
+button.primary.t2-timer-btn{width:auto;min-height:52px;min-width:150px;font-size:20px;font-weight:650;padding:0 26px}
+button.primary.t2-start{background:#2e7d32;border-color:#2e7d32}
+button.primary.t2-stopp{background:#b23b3b;border-color:#b23b3b}
+.t2-warnzeile{font-size:14px;font-weight:500;color:var(--red);background:var(--red-bg);border-radius:var(--radius-sm);padding:6px 10px}
+.t2-summe-zeile{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.t2-summe{font-size:24px;font-weight:650;font-variant-numeric:tabular-nums}
+.t2-status{font-size:15px;color:var(--text-2)}
+.st-rot .t2-status{color:var(--red)}
+.st-gruen .t2-status{color:var(--green)}
+.t2-bar{position:relative;height:14px;border-radius:7px;background:var(--surface-3);overflow:visible}
+.t2-bar-fill{height:100%;border-radius:7px;background:var(--info);transition:width .4s}
+.st-rot .t2-bar-business .t2-bar-fill{background:var(--red)}
+.st-amber .t2-bar-business .t2-bar-fill{background:var(--amber)}
+.st-gruen .t2-bar-business .t2-bar-fill,.t2-bar-gruen .t2-bar-fill{background:var(--green)}
+.t2-bar-marke{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--text-2);opacity:.6;border-radius:1px}
+.t2-detail-zeile{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.t2-panel{display:flex;flex-direction:column;gap:8px;background:var(--surface-2);border-radius:var(--radius-sm);padding:10px 12px}
+.t2-panel-titel{font-weight:600;font-size:14px}
+.t2-sitzung{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:14px;font-variant-numeric:tabular-nums}
+.t2-panel-zeile{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.t2-input{height:40px;padding:0 10px;background:var(--surface);border:1px solid var(--border-2);border-radius:var(--radius-sm);font-size:15px;width:120px}
+.t2-input:focus{outline:2px solid var(--info);outline-offset:1px}
+.t2-input-breit{flex:1;min-width:220px;width:auto}
+.t2-date{width:170px}
+
+/* Workout */
+.t2-workout-zeile{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+button.primary.t2-workout-btn{width:auto;min-height:48px;padding:0 22px;font-size:17px;font-weight:650;background:#2e7d32;border-color:#2e7d32}
+.t2-workout-ok{font-size:18px;font-weight:650;color:var(--green)}
+
+/* Deckel: drei Kacheln */
+.t2-deckel-reihe{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.t2-kachel{border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 10px;display:flex;flex-direction:column;gap:1px;background:var(--surface);min-width:0}
+.t2-kachel.st-amber{border-color:var(--amber);background:var(--amber-bg)}
+.t2-kachel.st-rot{border-color:var(--red);background:var(--red-bg)}
+.t2-kachel-label{font-size:14px;font-weight:600;color:var(--text-2)}
+.t2-kachel-zahl{font-size:34px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
+.t2-kachel-zahlzeile{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.st-rot .t2-kachel-zahl{color:var(--red)}
+.t2-kachel-knoepfe{display:flex;gap:6px;margin-top:3px}
+.t2-kachel-btn{flex:1;min-height:44px;font-size:18px;font-weight:650;padding:0}
+.t2-undo{flex:0 0 44px;font-size:16px}
+.t2-grau .t2-kachel{opacity:.45}
+.t2-grau .t2-kachel:active{opacity:.7}
+.t2-gesperrt{background:var(--surface-2)}
+.t2-gesperrt .t2-kachel-zahl{color:var(--text-3)}
+
+/* Nur-Daten */
+.t2-daten-reihe{display:flex;gap:10px 28px;flex-wrap:wrap;align-items:flex-end}
+.t2-datum-feld{display:flex;flex-direction:column;gap:2px}
+.t2-feld-label{font-size:12px;font-weight:600;color:var(--text-2);text-transform:uppercase;letter-spacing:.03em}
+.t2-stepper,.t2-auf{display:flex;align-items:center;gap:8px}
+.t2-step{min-width:44px;min-height:42px;font-size:20px;padding:0}
+.t2-step-zahl{font-size:22px;font-weight:650;min-width:48px;text-align:center;font-variant-numeric:tabular-nums}
+
+/* Woche */
+.t2-wochenziel{font-size:15px;font-weight:600;color:var(--info);background:var(--info-bg);border-radius:var(--radius-sm);padding:6px 10px}
+.t2-woche-tage{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.t2-wt{display:flex;flex-direction:column;align-items:center;gap:0;border:1px solid var(--border);border-radius:var(--radius-sm);padding:3px 0;background:var(--surface-2)}
+.t2-wt-tag{font-size:12px;font-weight:600}
+.t2-wt-h{font-size:14px;font-weight:650;font-variant-numeric:tabular-nums}
+.t2-wt.z-na{background:transparent;color:var(--text-3)}
+.t2-wt.z-heute{outline:2px solid var(--info);outline-offset:1px}
+.t2-streaks{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.t2-streak{display:flex;align-items:baseline;gap:8px;background:var(--surface-2);border-radius:var(--radius-sm);padding:4px 10px}
+.t2-streak-zahl{font-size:24px;font-weight:700;color:var(--green);line-height:1}
+.t2-streak-lbl{font-size:13px;color:var(--text-2);line-height:1.25}
+.t2-social{display:flex;align-items:center;gap:10px;flex-wrap:wrap;border:1px solid var(--border);border-radius:var(--radius-sm);padding:4px 10px}
+.t2-social.st-rot{border-color:var(--red);background:var(--red-bg)}
+.t2-social.st-gruen{border-color:var(--green)}
+button.t2-review-btn{width:auto;align-self:flex-start;min-height:42px}
+
+/* Messwerte */
+.t2-mess-reihe{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.t2-mess-kachel{background:var(--surface-2);border-radius:var(--radius-sm);padding:4px 10px;min-width:0}
+.t2-mess-zahl{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.2}
+.t2-mess-label{font-size:13px;font-weight:600;color:var(--text-2)}
+
+/* Belohnungsleiter */
+.t2-stufe{display:flex;flex-direction:column;gap:4px;border-bottom:1px solid var(--border);padding-bottom:8px}
+.t2-stufe-name{font-size:16px;font-weight:650}
+.t2-stufe-ok .t2-stufe-name{color:var(--green)}
+.t2-stufe-inhalt{display:flex;flex-direction:column;gap:4px}
+.t2-haken{display:flex;align-items:center;gap:10px;min-height:40px;font-size:15px;cursor:pointer}
+.t2-haken input{width:24px;height:24px;accent-color:#2e7d32;flex:none}
+.t2-ziel{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.t2-ziel-ok .t2-haken span{text-decoration:line-through;color:var(--text-3)}
+
+/* Wochen-Review (Sonntag) */
+.t2-review{max-width:980px;width:100%;margin:0 auto}
+.t2-tabelle{width:100%;border-collapse:collapse;font-size:16px;font-variant-numeric:tabular-nums}
+.t2-tabelle th{text-align:left;font-size:13px;color:var(--text-3);font-weight:600;padding:6px 8px;border-bottom:1px solid var(--border-2)}
+.t2-tabelle td{padding:7px 8px;border-bottom:1px solid var(--border)}
+.t2-tabelle .t2-zukunft td{color:var(--text-3)}
+.t2-summe-tr td{font-weight:700;border-top:2px solid var(--border-2)}
+.t2-review-fakten{display:flex;flex-direction:column;gap:4px;font-size:15px;color:var(--text-2)}
+
+/* Termine-Kachel (aus der klassischen Ansicht) */
+.t2-agenda-huelle{max-width:900px;width:100%;margin:0 auto}
+.t2-agenda{max-height:70vh}
+
+@media (max-width:759px){
+  .t2-datum,.t2-uhr{font-size:20px}
+  .t2-timer{font-size:36px;min-width:0}
+  .t2-tagwahl{margin-left:0}
+}

@@ -101,6 +101,9 @@ function route(action, body){
   if (action === "ci_save") return ciSave(body);
   if (action === "ci_agenda") return ciAgenda(body);   // Tablet: Kalender + Tasks lesen (checkin.gs)
   if (action === "ci_task_done") return ciTaskDone(body);   // Tablet: Aufgabe abhaken/rueckgaengig (nur Status)
+  // Tablet-Tracker, neue Ansicht #tablet2 (tablet2.gs) — admin-only.
+  if (action === "t2_get")  return t2Get(body);
+  if (action === "t2_save") return t2Save(body);
   return { ok:false, error:"unknown action" };
 }
 

@@ -551,7 +551,11 @@ function tbRender(){
   const bMenu = dzEl("button", "dz-btn tb-btn", "Menü");
   bMenu.type = "button"; bMenu.title = "Topbar mit Bereichswahl einblenden";
   bMenu.onclick = () => { document.body.classList.toggle("tablet-mode"); };
-  [bEintragen, bKal, bRefresh, bMenu].forEach(b => knoepfe.appendChild(b));
+  // Seit 24.10.2026: neue Tracker-Ansicht (t2.js) zum Vergleichen — die Wahl merkt sich auch der Link #tablet
+  const bNeu = dzEl("button", "dz-btn tb-btn", "Neue Ansicht");
+  bNeu.type = "button"; bNeu.title = "Tablet-Tracker (Timer, Deckel, Woche, Belohnungsleiter)";
+  bNeu.onclick = () => { if (window.t2Wechsel) window.t2Wechsel("tablet2"); };
+  [bEintragen, bKal, bRefresh, bNeu, bMenu].forEach(b => knoepfe.appendChild(b));
   head.appendChild(knoepfe);
   v.appendChild(head);
 
@@ -624,9 +628,9 @@ function tbTaskStatusAufraeumen_(ag){
 
 // Nur die Agenda-Kachel neu zeichnen (Scroll-Position bleibt, Uhr/Timer laufen weiter)
 function tbAgendaNeuZeichnen_(){
-  if (state.mode !== "tablet") return;
-  const box = document.querySelector("#tablet-view .tb-kal");
-  if (!box || !(tb.agenda && tb.agenda.ok)){ tbRender(); return; }
+  if (state.mode !== "tablet" && state.mode !== "tablet2") return;   // tablet2: Termine-Kachel der neuen Ansicht (t2.js)
+  const box = document.querySelector(state.mode === "tablet2" ? "#tablet2-view .tb-kal" : "#tablet-view .tb-kal");
+  if (!box || !(tb.agenda && tb.agenda.ok)){ if (state.mode === "tablet") tbRender(); return; }
   const oben = box.scrollTop;
   dzClear(box);
   tbAgenda(box, tb.agenda);

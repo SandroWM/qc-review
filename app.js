@@ -425,7 +425,7 @@ function showScreeningResult(stats){
 function modesForRole(role){
   // Entscheidungen + Cockpit + Check-in sind admin-only (Sandro) — VAs sehen nur ihre Review-Queue.
   // Reihenfolge = Sandro 2026-07-23: Cockpit ist Startansicht, dann Entscheidungen, Review, Spot-Check.
-  if (role==="admin") return [["cockpit","Cockpit"],["dz","Entscheidungen"],["checkin","Check-in"],["tablet","Tablet"],["review","Review"],["spotcheck","Spot-Check"]];
+  if (role==="admin") return [["cockpit","Cockpit"],["dz","Entscheidungen"],["checkin","Check-in"],["tablet","Tablet"],["tablet2","Tablet neu"],["review","Review"],["spotcheck","Spot-Check"]];
   return [["review","Review"]];
 }
 function startApp(){
@@ -436,7 +436,9 @@ function startApp(){
   modesForRole(state.role).forEach(([v,l])=>{ const o=document.createElement("option"); o.value=v; o.textContent=l; sel.appendChild(o); });
   sel.onchange = ()=>{ state.mode=sel.value; state.typ=null; dzSwitchMode(); };
   // Direktlink auf eine Ansicht: #checkin (Kalender-Reminder) o. #dz/#cockpit — nur rollenerlaubte Modi.
-  const wunsch = (location.hash||"").replace(/^#/,"");
+  let wunsch = (location.hash||"").replace(/^#/,"");
+  // Startbildschirm-Link #tablet oeffnet die zuletzt gewaehlte Tablet-Variante (Umschalter in ci.js/t2.js, seit 24.10.2026)
+  if (wunsch === "tablet"){ try { if (localStorage.getItem("qc_tb_variante") === "neu") wunsch = "tablet2"; } catch(e){} }
   if (wunsch && modesForRole(state.role).some(([v])=>v===wunsch)) sel.value = wunsch;
   state.mode = sel.value || "review";
   dzSwitchMode();   // routet: review/spotcheck -> QC-Workspace, dz/cockpit/checkin -> eigene Views
@@ -511,7 +513,7 @@ async function doLogin(e){
 /* ---------- Tastatur (A/R, 1-5 Sterne, Enter = weiter) ---------- */
 function onKey(e){
   if ($("app-view").hidden) return;
-  if (state.mode === "dz" || state.mode === "cockpit" || state.mode === "checkin" || state.mode === "tablet") return;   // A/R/Enter nur im QC-Workspace
+  if (state.mode === "dz" || state.mode === "cockpit" || state.mode === "checkin" || state.mode === "tablet" || state.mode === "tablet2") return;   // A/R/Enter nur im QC-Workspace
   const tag = (e.target && e.target.tagName || "").toLowerCase();
   if (tag === "textarea" || tag === "input" || tag === "select") return;
   const k = e.key.toLowerCase();

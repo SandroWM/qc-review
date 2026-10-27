@@ -10,7 +10,7 @@ NSFW-Consent-Zeitstempel), Typ-Tabs (Board je Content-Typ inkl. **Skript**), Skr
 XSS-sichere DOM-Erzeugung, Tastatur-Bedienung (A/R, 1–5, Enter), Notfall-Token-Revoke (`bumpTokenVersion()`).
 Setup jetzt: `setup('EinmalAdminPasswort')` — kein Passwort mehr im Code.
 
-**Ein Tool, drei Modi** (+ admin-only Ansichten Cockpit, Entscheidungen, Check-in):
+**Ein Tool, drei Modi** (+ admin-only Ansichten Cockpit, Entscheidungen, Check-in, Tablet, Tablet neu):
 - **Review** (Tier-0 Sandro / Tier-1 VAs) — Live-Queue `sheet-60-qc-queue` prüfen.
 - **Spot-Check** (Sandro / Lead-VA, Meta-QC) — Stichprobe der VA-Entscheidungen re-reviewen (`sop-09-06`).
 - **Screening** (Bewerber) — Golden-Set-Test (`sheet-64-qc-golden-set`), Auto-Scoring → `sheet-63` (`sop-09-07`).
@@ -26,6 +26,23 @@ Setup jetzt: `setup('EinmalAdminPasswort')` — kein Passwort mehr im Code.
   Aufgabe antippen → darunter „✓ Erledigt" / „Abbrechen" → `ci_task_done` setzt sie in Google Tasks auf erledigt
   (nur der Status, nie Titel/Datum). Zwei Taps, damit ein Wisch nichts abhakt; die Zeile bleibt durchgestrichen mit
   „Rückgängig" stehen, bis die Agenda neu lädt. Ohne Task-IDs (älteres Backend) bleiben die Zeilen reine Anzeige.
+- **Tablet neu** (Sandro, `t2.js`/`t2.css` + `backend/tablet2.gs`, Direktlink `#tablet2`, seit 24.10.2026) — zweite,
+  umschaltbare Tablet-Ansicht („Neue Ansicht" ↔ „Klassische Ansicht"; die Wahl merkt sich `localStorage qc_tb_variante`,
+  der Startbildschirm-Link `#tablet` öffnet dann die gewählte Variante). Eine Seite (1280×800 ohne Scrollen):
+  **Tag** — Tagestyp Schicht/frei aus dem Kalender (Termin „DHL …", Schichttag = Kalendertag des Schichtendes;
+  antippen = manuell umkehren) · Business-Timer Start/Stop, Ziel 3:00 h, unter 1:00 h rot · Workout Tag A/B im Wechsel
+  nach jedem erledigten Workout, rot wenn der Vortag ausfiel · Deckel Games/Folgen/Videos je 3 → 0 (unter 90 min
+  Business ausgegraut, aber antippbar; am Schichttag Games ab 07:00 gesperrt) · Nur-Daten-Felder Zigaretten und
+  Aufstehzeit · Tageswahl bis 7 Tage zurück zum Korrigieren. **Woche** (Mo–So, Reset mit dem Montag, kein Übertrag) —
+  21 h Ziel mit Resttagen, Streaks (Tage in Folge ≥ 3 h; Workout ohne 2 Pausen in Folge), Social-Treffen-Datum (leer =
+  rot ab Sonntag), Sonntag Wochen-Review (Tabelle + Ziel nächste Woche, 1 Satz). **Belohnungsleiter** immer sichtbar
+  (Coaching x/14, Kirei EG = Business-Ziel 1, Kirei ML = erster Euro, Latzug x/56; erreichte Stufen bleiben erreicht)
+  + Business-Ziele 1–4 (umbenennbar). **Messwerte** vom PC: `os-data/tracker-auto.json` (schreibt nur
+  `C:\Users\Claude\tracker\aw_tracker.py`, Task Scheduler alle 15 min: ActivityWatch + Claude-Code-Verläufe) —
+  Business (Fenster, ohne AFK), Claude aktiv, Kontextwechsel/h, Minuten Aufstehen → Timer-Start; Messphase 14 Tage,
+  danach Regeln ableiten. **Business-Zeit = Korrektur, sonst Vereinigung aus Timer-Sitzungen und Tracker-Business-
+  Intervallen** (nichts doppelt); Games = Korrektur, sonst max(getippt, Tracker). Tagesgrenze 04:00 wie beim Check-in.
+  „Termine" klappt die Agenda der klassischen Ansicht auf. Das Musik-Modul gibt es hier nicht.
 - **Check-in** (Sandro, `ci.js`/`checkin.gs`, Direktlink `#checkin`) — Daily-Tracking des Minimaltag-Systems
   nach `os-data/checkins.json` im Drive; Tagesgrenze 04:00 Europe/Berlin (Nachtschicht), Streak-Regel
   „nie 2 rote Tage in Folge", Nachtrag ≤ 7 Tage. **Business wird in Stunden erfasst** (7 Pills 0–6 + Feld
@@ -112,6 +129,8 @@ Alle Calls: `POST <BACKEND_URL>` mit JSON-Body, Antwort `{ ok: bool, ... }`.
 | `ci_save` | `{action, token, datum, stunden, status, kernblock, musik, sport, notiz}` (admin) | `{ok, days, heute, soll}` · idempotent pro Datum, Fenster heute−7 T, Guards stunden↔kernblock (ab 3 h) und status↔kernblock; `stunden` Viertelstunden 0–24, optional (Alt-Client ohne Stunden → kernblock wie gesendet) |
 | `ci_agenda` | `{action, token}` (admin) | `{ok, heute, stand, quelle, events:[{t,tag,s,e,sMs,eMs,allDay,farbe,fq,label,kal}], tasks:[{t,due,liste,notiz,id,lid}], warnungen, tasksFehler}` · Termine heute + morgen, offene Aufgaben fällig ≤ morgen |
 | `ci_task_done` | `{action, token, lid, id, rueckgaengig?}` (admin) | `{ok, status, schon, due, completed?, um}` · setzt nur den Status (`completed`, mit `rueckgaengig:true` wieder `needsAction`); idempotent (`schon:true`, wenn der Status schon stimmt) |
+| `t2_get` | `{action, token}` (admin) | `{ok, heute, jetzt, daten, auto, schichten}` · `daten` = `os-data/tablet2.json` (`start, timer.laeuft, tage{datum:{timer:[[sMs,eMs]], z:{games,folgen,videos,zigaretten}, typ?, aufstehzeit?, business_min?, games_korr?, workout?:{typ,um}}}, wochen{montag:{social?,ziel?,review_um?}}, leiter{kirei_ml, ziele[4]{name,ok}, erreicht{coaching,latzug}}`) · `auto` = `tracker-auto.json` (letzte 70 Tage) oder `null` · `schichten.tage{datum:[{s,e,sMs,eMs}]}` (DHL-Termine heute−8 bis morgen, 15 min gecacht) |
+| `t2_save` | `{action, token, op, …}` (admin) | `{ok, heute, jetzt, daten}` · genau eine Änderung: `timer_start` · `timer_stop` (Sitzung an 04:00-Grenzen geteilt, max. 16 h) · `timer_verwerfen` · `sitzung_loeschen{datum,idx}` · `zaehler{datum,key,delta:±1}` · `setzen{datum,feld:typ\|aufstehzeit\|business_min\|games_korr,wert\|null}` · `workout{datum,erledigt,typ?}` (Typ sonst A/B im Wechsel) · `woche{montag,feld:social\|ziel\|review,wert}` · `leiter{feld:kirei_ml\|ziel1–4,wert}` · `ziel_name{nr,name}` · `erreicht{feld:coaching\|latzug,datum}` (einmalig); Tagesfelder heute−7 T, Wochen Vor-/diese/nächste Woche |
 
 - `mode`: `review` \| `spotcheck` \| `screening`. `decision`: **`approve` \| `reject`** (keine `revision`-Option für den Reviewer).
 - `item`: `{itemId, contentTyp, sourceSop, creatorId, creatorName, assetUrl, vaDecision?}` (`vaDecision` nur im Spot-Check).
